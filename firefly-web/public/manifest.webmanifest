@@ -1,0 +1,37 @@
+{
+  "name": "FireFly — Modern Client for Firefly III",
+  "short_name": "FireFly",
+  "description": "Fast personal finance client for Firefly III with automatic cross-currency transfers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161821",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Expense",
+      "short_name": "Expense",
+      "url": "/new?type=withdrawal",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "New Transfer",
+      "short_name": "Transfer",
+      "url": "/new?type=transfer",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Magic AI Assistant",
+      "short_name": "Ramble",
+      "url": "/new?type=ramble",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

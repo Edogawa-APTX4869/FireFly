@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* Colours follow the system scheme by default; a stored override updates <meta name="color-scheme">. */
+:root {
+  color-scheme: light dark;
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
+
+  --bg: light-dark(oklch(0.985 0.004 260), oklch(0.17 0.015 265));
+  --surface: light-dark(oklch(1 0 0), oklch(0.215 0.018 265));
+  --surface-2: light-dark(oklch(0.965 0.006 260), oklch(0.26 0.02 265));
+  --border: light-dark(oklch(0.91 0.008 260), oklch(0.32 0.02 265));
+  --fg: light-dark(oklch(0.22 0.02 265), oklch(0.95 0.008 260));
+  --muted: light-dark(oklch(0.52 0.02 265), oklch(0.7 0.015 260));
+  --primary: light-dark(oklch(0.58 0.2 275), oklch(0.7 0.16 275));
+  --primary-fg: light-dark(oklch(0.99 0 0), oklch(0.17 0.02 275));
+  --primary-soft: light-dark(oklch(0.95 0.035 275), oklch(0.3 0.06 275));
+  --success: light-dark(oklch(0.55 0.15 155), oklch(0.75 0.15 155));
+  --success-soft: light-dark(oklch(0.95 0.04 155), oklch(0.3 0.05 155));
+  --danger: light-dark(oklch(0.56 0.2 25), oklch(0.72 0.16 25));
+  --danger-soft: light-dark(oklch(0.95 0.03 25), oklch(0.3 0.06 25));
+  --warning: light-dark(oklch(0.62 0.15 70), oklch(0.8 0.14 80));
+  --warning-soft: light-dark(oklch(0.96 0.05 85), oklch(0.32 0.05 80));
+
+  accent-color: var(--primary);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Native <dialog> sheet styling */
+dialog.sheet {
+  margin: auto;
+  max-width: min(32rem, calc(100vw - 2rem));
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
+  padding: 0;
+}
+dialog.sheet::backdrop {
+  background: oklch(0 0 0 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fade-in {
+    animation: fade-in 180ms ease-out;
+  }
+  .sheet-up {
+    animation: sheet-up 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+  @keyframes sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "firefly-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix firefly-web run dev",
+    "build": "npm --prefix firefly-web run build",
+    "start": "npm --prefix firefly-web run start",
+    "lint": "npm --prefix firefly-web run lint",
+    "test": "npm --prefix firefly-web run test",
+    "typecheck": "npm --prefix firefly-web run typecheck"
+  }
+}

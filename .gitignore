@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+*/node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js build output
+.next/
+*/.next/
+out/
+*/out/
+
+# Production builds
+build/
+*/build/
+
+# Testing & coverage
+coverage/
+*/coverage/
+
+# Misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment files
+.env*.local
+.env
+*/.env*.local
+*/.env
+!.env.example
+!*/.env.example
+
+# Vercel
+.vercel
+*/.vercel
+
+# Local SQLite Companion Database & Backups
+/data
+*/data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-*

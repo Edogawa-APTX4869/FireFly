@@ -1,0 +1,97 @@
+version: "3.8"
+
+# ============================================================================
+# Complete Portainer / Synology NAS Stack:
+# 1. firefly-web  — Our modern Firefly III companion app + SQLite DB (icons, templates, AI)
+# 2. firefly-app  — Official Firefly III core backend
+# 3. firefly-db   — PostgreSQL database for Firefly III
+# 4. firefly-cron — Daily cron job for Firefly III recurring transactions
+# ============================================================================
+
+services:
+  firefly-web:
+    build:
+      context: ./firefly-web
+      dockerfile: Dockerfile
+    image: firefly-web:latest
+    container_name: firefly_web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Secret used to encrypt session cookies (generate any 32+ char string)
+      - SESSION_SECRET=${SESSION_SECRET:-change-this-to-a-long-random-secret-key-32chars}
+      # Pre-fills or auto-connects directly to your Firefly III container on the internal Docker network:
+      - FIREFLY_URL=${FIREFLY_URL:-http://firefly-app:8080}
+      # Optional: set FIREFLY_TOKEN here if you want automatic login without typing your token in the UI
+      - FIREFLY_TOKEN=${FIREFLY_TOKEN:-}
+      # Persistent SQLite directory for custom icons, templates, To-Do tags, and AI settings
+      - DATA_DIR=/app/data
+      # Optional: OpenAI / local Ollama endpoint for the "Magic Assistant" (Ramble)
+      - ASSISTANT_LLM_ENDPOINT=${ASSISTANT_LLM_ENDPOINT:-}
+      - ASSISTANT_LLM_MODEL=${ASSISTANT_LLM_MODEL:-gpt-4o-mini}
+      - ASSISTANT_LLM_API_KEY=${ASSISTANT_LLM_API_KEY:-}
+    volumes:
+      - firefly_web_data:/app/data
+    depends_on:
+      - firefly-app
+    networks:
+      - firefly_net
+
+  firefly-app:
+    image: fireflyiii/core:latest
+    container_name: firefly_iii_core
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_KEY=${FF_APP_KEY:-SomeRandomStringOf32CharsExactly}
+      - DB_CONNECTION=pgsql
+      - DB_HOST=firefly-db
+      - DB_PORT=5432
+      - DB_DATABASE=firefly
+      - DB_USERNAME=firefly
+      - DB_PASSWORD=${FF_DB_PASSWORD:-firefly_secret_password}
+      - TRUSTED_PROXIES=**
+      - TZ=${TZ:-Asia/Bahrain}
+    volumes:
+      - firefly_iii_upload:/var/www/html/storage/upload
+    depends_on:
+      - firefly-db
+    networks:
+      - firefly_net
+
+  firefly-db:
+    image: postgres:16-alpine
+    container_name: firefly_iii_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=firefly
+      - POSTGRES_USER=firefly
+      - POSTGRES_PASSWORD=${FF_DB_PASSWORD:-firefly_secret_password}
+    volumes:
+      - firefly_iii_db:/var/lib/postgresql/data
+    networks:
+      - firefly_net
+
+  firefly-cron:
+    image: alpine:3.20
+    container_name: firefly_iii_cron
+    restart: unless-stopped
+    command: >
+      sh -c "apk add --no-cache tzdata curl &&
+      echo '0 3 * * * wget -qO- http://firefly-app:8080/api/v1/cron/${FF_STATIC_CRON_TOKEN:-replace_with_32_char_cron_token} &> /dev/null' | crontab - &&
+      crond -f -L /dev/stdout"
+    networks:
+      - firefly_net
+
+volumes:
+  firefly_web_data:
+  firefly_iii_upload:
+  firefly_iii_db:
+
+networks:
+  firefly_net:
+    driver: bridge
