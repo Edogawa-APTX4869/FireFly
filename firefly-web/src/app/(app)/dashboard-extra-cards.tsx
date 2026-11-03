@@ -582,7 +582,7 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
               <Link
                 key={item.acc.id}
                 href={`/accounts/${item.acc.id}`}
-                className="flex flex-col justify-between gap-2 rounded-xl border border-border bg-surface-2/40 p-3 transition hover:border-primary/50 hover:bg-surface-2"
+                className="card-hover-spring flex flex-col justify-between gap-2 rounded-xl border border-border bg-surface-2/40 p-3 hover:border-primary/50 hover:bg-surface-2 hover:shadow-xs"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">

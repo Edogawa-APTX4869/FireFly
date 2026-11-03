@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Copy, Plus, Wand2, X } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Copy, Plus, Wand2 } from "lucide-react";
 import type { TransactionTemplateRow } from "@/lib/server/db";
 import { ICON_CATALOG } from "@/components/resource-icon";
 import { useAiAssistantConfig } from "@/components/magic-chatbar";
@@ -134,11 +134,18 @@ export function SpeedDialFab() {
           aria-label={open ? "Close quick actions" : "Add transaction or use template"}
           aria-expanded={open}
           className={cn(
-            "flex size-14 items-center justify-center rounded-full shadow-lg transition-all duration-150",
-            open ? "bg-fg text-bg" : "bg-primary text-primary-fg hover:opacity-90",
+            "flex size-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 active:scale-95",
+            open ? "bg-fg text-bg" : "bg-primary text-primary-fg hover:opacity-90 hover:scale-105",
           )}
         >
-          {open ? <X className="size-6" aria-hidden /> : <Plus className="size-7" aria-hidden />}
+          <Plus
+            className={cn(
+              "size-7 transition-transform duration-250 ease-out",
+              open && "rotate-45",
+            )}
+            style={{ transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+            aria-hidden
+          />
         </button>
       </div>
     </>

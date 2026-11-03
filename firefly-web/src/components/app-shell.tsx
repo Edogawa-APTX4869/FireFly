@@ -203,39 +203,41 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={() => setOpenMap((m) => ({ ...m, [group.key]: !isOpen }))}
                 aria-label={`Toggle ${group.label} submenu`}
                 aria-expanded={isOpen}
-                className="rounded-lg p-2 hover:bg-surface-2/80"
+                className="rounded-lg p-2 hover:bg-surface-2/80 transition-colors"
               >
                 <ChevronDown
-                  className={cn("size-3.5 transition-transform duration-150", isOpen ? "rotate-0" : "-rotate-90")}
+                  className={cn("size-3.5 transition-transform duration-200 ease-out", isOpen ? "rotate-0" : "-rotate-90")}
                   aria-hidden
                 />
               </button>
             </div>
 
-            {isOpen && (
-              <ul className="mt-0.5 ml-5 flex flex-col gap-0.5 border-l border-border pl-2.5">
-                {group.children!.map((child) => {
-                  const childActive = isChildActive(child);
-                  return (
-                    <li key={child.href}>
-                      <Link
-                        href={child.href}
-                        onClick={onNavigate}
-                        aria-current={childActive ? "page" : undefined}
-                        className={cn(
-                          "block rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
-                          childActive
-                            ? "bg-primary-soft font-semibold text-primary"
-                            : "text-muted hover:bg-surface-2 hover:text-fg",
-                        )}
-                      >
-                        {child.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <div className={cn("accordion-wrapper", isOpen && "is-open")}>
+              <div className="overflow-hidden">
+                <ul className="mt-0.5 ml-5 flex flex-col gap-0.5 border-l border-border pl-2.5 py-0.5">
+                  {group.children!.map((child) => {
+                    const childActive = isChildActive(child);
+                    return (
+                      <li key={child.href}>
+                        <Link
+                          href={child.href}
+                          onClick={onNavigate}
+                          aria-current={childActive ? "page" : undefined}
+                          className={cn(
+                            "block rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                            childActive
+                              ? "bg-primary-soft font-semibold text-primary"
+                              : "text-muted hover:bg-surface-2 hover:text-fg",
+                          )}
+                        >
+                          {child.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
           </div>
         );
       })}

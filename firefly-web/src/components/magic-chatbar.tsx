@@ -1016,21 +1016,26 @@ export function MagicChatPanel({
           <Paperclip className="size-4" aria-hidden />
         </button>
 
-        {/* Voice Dictation Mic Button */}
-        <button
-          type="button"
-          onClick={toggleVoiceDictation}
-          aria-label={listening ? "Stop voice dictation" : "Start voice dictation"}
-          title={listening ? "Listening… click to stop" : "Dictate with voice"}
-          className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-xl border transition-all",
-            listening
-              ? "animate-pulse border-danger bg-danger text-white shadow-sm"
-              : "border-border bg-surface-2 text-muted hover:border-primary hover:text-fg",
+        {/* Voice Dictation Mic Button with Radar Waveform Pulse */}
+        <div className="relative flex shrink-0 items-center justify-center">
+          {listening && (
+            <span className="animate-voice-ripple absolute inset-0 rounded-xl bg-danger" aria-hidden />
           )}
-        >
-          {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-        </button>
+          <button
+            type="button"
+            onClick={toggleVoiceDictation}
+            aria-label={listening ? "Stop voice dictation" : "Start voice dictation"}
+            title={listening ? "Listening… click to stop" : "Dictate with voice"}
+            className={cn(
+              "relative z-10 flex size-9 shrink-0 items-center justify-center rounded-xl border transition-all active:scale-95",
+              listening
+                ? "border-danger bg-danger text-white shadow-md"
+                : "border-border bg-surface-2 text-muted hover:border-primary hover:text-fg",
+            )}
+          >
+            {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+          </button>
+        </div>
 
         {/* Natural-Language Chat Input */}
         <input
@@ -1113,7 +1118,7 @@ export function MagicChatbar() {
               window.dispatchEvent(new CustomEvent("ff:open-magic-chat"));
             }, 50);
           }}
-          className="flex items-center gap-2 rounded-full border border-primary/30 bg-surface/95 px-3.5 py-2 text-xs font-semibold text-primary shadow-lg backdrop-blur transition hover:bg-primary-soft"
+          className="flex items-center gap-2 rounded-full border border-primary/30 bg-surface/95 px-3.5 py-2 text-xs font-semibold text-primary shadow-lg backdrop-blur transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-primary-soft hover:shadow-xl"
         >
           <Sparkles className="size-3.5" aria-hidden />
           <span>Ask AI / Ramble</span>
@@ -1123,7 +1128,7 @@ export function MagicChatbar() {
   }
 
   return (
-    <div className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl md:right-24 md:bottom-5 md:left-72">
+    <div className="sheet-up fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl md:right-24 md:bottom-5 md:left-72">
       <div className="relative">
         <button
           type="button"
