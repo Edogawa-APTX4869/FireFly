@@ -45,8 +45,8 @@ The repository provides a complete 4-container production stack:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/Edogawa-APTX4869/FireFly.git
-cd FireFly
+git clone https://github.com/Edogawa-APTX4869/Wallet.git
+cd Wallet
 ```
 
 ### Step 2: Configure Environment Variables
