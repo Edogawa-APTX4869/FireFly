@@ -57,8 +57,8 @@ A complete production stack containing FireFly Companion, Firefly III core, Post
 
 ### 1. Clone & Configure
 ```bash
-git clone https://github.com/Edogawa-APTX4869/Wallet.git
-cd Wallet
+git clone https://github.com/Edogawa-APTX4869/wallet.git
+cd wallet
 ```
 
 ### 2. Launch the Stack

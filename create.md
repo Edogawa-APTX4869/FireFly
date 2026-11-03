@@ -45,8 +45,8 @@ The repository provides a complete 4-container production stack:
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/Edogawa-APTX4869/Wallet.git
-cd Wallet
+git clone https://github.com/Edogawa-APTX4869/wallet.git
+cd wallet
 ```
 
 ### Step 2: Configure Environment Variables
