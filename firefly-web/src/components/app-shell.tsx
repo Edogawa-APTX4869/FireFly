@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpeedDialFab } from "@/components/speed-dial-fab";
-import { MagicChatbar, useAiAssistantConfig } from "@/components/magic-chatbar";
+import { MagicChatbar } from "@/components/magic-chatbar";
 
 interface NavChild {
   href: string;
@@ -130,19 +130,8 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Keep track of which main menu sections are expanded
-  const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => {
-    const init: Record<string, boolean> = {};
-    for (const g of NAV_GROUPS) {
-      if (g.children) init[g.key] = isGroupActive(pathname, g);
-    }
-    // Always open Accounts, Transactions, Automation, and Classification by default for easy discovery
-    init.accounts = true;
-    init.transactions = true;
-    init.automation = true;
-    init.classification = true;
-    return init;
-  });
+  // Manual overrides for category accordion toggles (collapsed by default unless currently active)
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
 
   function isChildActive(child: NavChild): boolean {
     if (!child.matchPath) return false;
@@ -258,8 +247,6 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const aiConfigQ = useAiAssistantConfig();
-  const aiReady = Boolean(aiConfigQ.data?.enabled && aiConfigQ.data?.verified);
 
   function cycleTheme() {
     try {
@@ -302,15 +289,6 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
           FireFly
         </Link>
         <div className="flex items-center gap-1.5">
-          {aiReady && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent("ff:open-magic-chat"))}
-              className="flex h-8 items-center gap-1.5 rounded-lg bg-primary-soft px-2.5 text-xs font-semibold text-primary"
-            >
-              <Wand2 className="size-3.5" aria-hidden /> AI
-            </button>
-          )}
           <button
             type="button"
             onClick={cycleTheme}
@@ -401,35 +379,20 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
       <main className="min-w-0 flex-1 px-4 pt-5 pb-28 md:px-8 md:pt-7 md:pb-24">
         <div className="mx-auto w-full max-w-6xl">
           {/* Desktop quick shortcut bar */}
-          <div className="mb-5 hidden items-center justify-between rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
-            <div className="flex items-center gap-3">
-              <span>Shortcuts:</span>
-              <Link href="/new?type=withdrawal" className="inline-flex items-center gap-1 hover:text-fg">
-                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">N</kbd> Expense
-              </Link>
-              <Link href="/new?type=transfer" className="inline-flex items-center gap-1 hover:text-fg">
-                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">T</kbd> Transfer
-              </Link>
-              <Link href="/new?type=deposit" className="inline-flex items-center gap-1 hover:text-fg">
-                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">I</kbd> Income
-              </Link>
-              <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
-                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
-              </Link>
-            </div>
-            {aiReady ? (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent("ff:open-magic-chat"))}
-                className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
-              >
-                <Wand2 className="size-3.5" aria-hidden /> AI Magic Chatbar
-              </button>
-            ) : (
-              <Link href="/settings#assistant" className="inline-flex items-center gap-1.5 text-muted hover:text-fg">
-                <Wand2 className="size-3.5" aria-hidden /> Setup AI Assistant
-              </Link>
-            )}
+          <div className="mb-5 hidden items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
+            <span>Shortcuts:</span>
+            <Link href="/new?type=withdrawal" className="inline-flex items-center gap-1 hover:text-fg">
+              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">N</kbd> Expense
+            </Link>
+            <Link href="/new?type=transfer" className="inline-flex items-center gap-1 hover:text-fg">
+              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">T</kbd> Transfer
+            </Link>
+            <Link href="/new?type=deposit" className="inline-flex items-center gap-1 hover:text-fg">
+              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">I</kbd> Income
+            </Link>
+            <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
+              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
+            </Link>
           </div>
           {children}
         </div>
