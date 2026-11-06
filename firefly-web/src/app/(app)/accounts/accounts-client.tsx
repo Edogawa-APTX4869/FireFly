@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import Decimal from "decimal.js";
-import { ArrowLeftRight, Building2, CreditCard, Landmark, Search, Store, Wallet } from "lucide-react";
+import { ArrowLeftRight, Building2, CreditCard, Landmark, Search, Store, Wallet, X } from "lucide-react";
 import type { Account, Resource } from "@/lib/firefly/types";
 import { useAccounts, usePrimaryCurrency, useRatesToPrimary } from "@/lib/hooks";
 import { cn, formatDate, isoDate } from "@/lib/utils";
 import { inferAccountDefaultStyle, ResourceIconBadge } from "@/components/resource-icon";
-import { Badge, Button, Card, EmptyState, ErrorBox, Input, Money, PageHeader, Skeleton } from "@/components/ui";
+import { AnimatedTabs, Badge, Button, Card, EmptyState, ErrorBox, Input, Money, PageHeader, Skeleton } from "@/components/ui";
 
 type GroupKey = "asset" | "liabilities" | "expense" | "revenue";
 
@@ -91,24 +91,12 @@ export function AccountsClient() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="tablist" aria-label="Account groups" className="flex flex-wrap gap-1 rounded-2xl bg-surface-2 p-1">
-          {GROUPS.map((g) => (
-            <button
-              key={g.key}
-              role="tab"
-              type="button"
-              aria-selected={tab === g.key}
-              onClick={() => setTab(g.key)}
-              className={cn(
-                "flex h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors",
-                tab === g.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
-              )}
-            >
-              <g.icon className="size-4" aria-hidden />
-              {g.label}
-            </button>
-          ))}
-        </div>
+        <AnimatedTabs
+          tabs={GROUPS}
+          activeTab={tab}
+          onChange={setTab}
+          ariaLabel="Account groups"
+        />
 
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
@@ -118,16 +106,26 @@ export function AccountsClient() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search accounts…"
             aria-label="Search accounts"
-            className="pl-9"
+            className={cn("pl-9", search && "pr-9")}
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="absolute top-1/2 right-2.5 flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-muted transition-all hover:bg-surface-2 hover:text-fg active:scale-90"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 
       {totalsByCurrency.length > 0 && (tab === "asset" || tab === "liabilities") && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div key={`totals-${tab}`} className="animate-tab-enter flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted">Active totals:</span>
           {totalsByCurrency.map((t) => (
-            <Badge key={t.code} tone="primary" className="px-2.5 py-1 text-xs">
+            <Badge key={t.code} tone="primary" className="px-2.5 py-1 text-xs transition-transform hover:scale-105 select-none">
               <Money animated amount={t.sum.toString()} code={t.code} decimals={t.decimals} symbol={t.symbol} />
             </Badge>
           ))}
@@ -143,9 +141,11 @@ export function AccountsClient() {
           <Skeleton className="h-32" />
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState title={`No ${currentGroup.label.toLowerCase()} found`} />
+        <div key={`empty-${tab}`} className="animate-tab-enter">
+          <EmptyState title={`No ${currentGroup.label.toLowerCase()} found`} />
+        </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div key={`grid-${tab}`} className="animate-tab-enter grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((acc) => (
             <AccountCard
               key={acc.id}
@@ -182,8 +182,8 @@ function AccountCard({
     isForeign && rateToPrimary ? new Decimal(bal).mul(rateToPrimary).toFixed(primaryDecimals) : null;
 
   return (
-    <Link href={`/accounts/${acc.id}`} className="group block">
-      <Card className="flex h-full flex-col justify-between gap-3 transition-colors group-hover:border-primary/50">
+    <Link href={`/accounts/${acc.id}`} className="group block cursor-pointer">
+      <Card className="card-hover-spring flex h-full flex-col justify-between gap-3 cursor-pointer group-hover:border-primary/50 group-hover:shadow-md">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
             <ResourceIconBadge
@@ -193,7 +193,7 @@ function AccountCard({
               defaultColor={inferred.color}
             />
             <div className="min-w-0">
-              <h3 className="truncate font-semibold group-hover:text-primary">{a.name}</h3>
+              <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{a.name}</h3>
               <p className="truncate text-xs text-muted">
                 {a.account_role || a.liability_type || a.type}
                 {a.iban ? ` · ${a.iban}` : a.account_number ? ` · ${a.account_number}` : ""}
@@ -214,11 +214,12 @@ function AccountCard({
               decimals={a.currency_decimal_places}
               symbol={a.currency_symbol}
               colored={a.type === "asset" || a.type === "liabilities" || a.type === "liability"}
+              animated
             />
           </p>
           {converted && primaryCode && (
             <p className="text-xs text-muted">
-              ≈ <Money amount={converted} code={primaryCode} decimals={primaryDecimals} />
+              ≈ <Money amount={converted} code={primaryCode} decimals={primaryDecimals} animated />
             </p>
           )}
           {a.current_balance_date && (

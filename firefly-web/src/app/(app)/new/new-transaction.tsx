@@ -31,7 +31,7 @@ import { CategoryCascadeSelect } from "@/components/category-cascade";
 import { LinkedAmountFields, useLinkedAmounts, type CurrencyInfo } from "@/components/linked-amounts";
 import { MagicChatPanel } from "@/components/magic-chatbar";
 import { ICON_CATALOG, inferCategoryDefaultStyle, ResourceIconBadge } from "@/components/resource-icon";
-import { Badge, Button, Card, ErrorBox, Field, Input, ModalSheet, Select, Skeleton } from "@/components/ui";
+import { AnimatedTabs, Badge, Button, Card, ErrorBox, Field, Input, ModalSheet, Select, Skeleton } from "@/components/ui";
 import { useToast } from "@/components/providers";
 
 type TxType = "withdrawal" | "deposit" | "transfer" | "ramble";
@@ -551,27 +551,17 @@ function WalletCalculatorForm({
         </div>
 
         {/* Mode Tabs — same segmented control used across the app */}
-        <div role="tablist" className="grid grid-cols-4 gap-1 rounded-xl bg-surface-2 p-1">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.type}
-                role="tab"
-                type="button"
-                aria-selected={type === t.type}
-                onClick={() => router.replace(`/new?type=${t.type}`, { scroll: false })}
-                className={cn(
-                  "flex h-9 items-center justify-center gap-1.5 rounded-lg text-xs font-medium transition-colors",
-                  type === t.type ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
-                )}
-              >
-                <Icon className="size-3.5" aria-hidden />
-                <span className="capitalize">{t.label.toLowerCase()}</span>
-              </button>
-            );
-          })}
-        </div>
+        <AnimatedTabs
+          tabs={TABS.map((t) => ({
+            key: t.type,
+            label: <span className="capitalize">{t.label.toLowerCase()}</span>,
+            icon: t.icon,
+          }))}
+          activeTab={type}
+          onChange={(newType) => router.replace(`/new?type=${newType}`, { scroll: false })}
+          className="grid grid-cols-4"
+          ariaLabel="Transaction types"
+        />
 
         {/* Saved Templates Strip */}
         {matchingTemplates.length > 0 && (

@@ -60,6 +60,27 @@ body {
   text-size-adjust: 100%;
 }
 
+/* Interactive cursor pointers for all buttons, tabs, links, and triggers */
+button,
+[role="button"],
+[role="tab"],
+[type="button"],
+[type="submit"],
+[type="reset"],
+summary,
+select,
+label[for],
+a[href] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+[role="tab"][aria-disabled="true"],
+[disabled] {
+  cursor: not-allowed;
+}
+
 body {
   background: var(--bg);
   color: var(--fg);
@@ -113,13 +134,32 @@ dialog.sheet::backdrop {
 
 /* Card interactive physics (Smooth hover lift and tactile press) */
 .card-hover-spring {
-  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 200ms ease, border-color 150ms ease, background-color 150ms ease;
+  cursor: pointer;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease, border-color 150ms ease, background-color 150ms ease;
+  will-change: transform, box-shadow;
 }
 .card-hover-spring:hover {
-  transform: translateY(-2px);
+  transform: translate3d(0, -3px, 0);
 }
 .card-hover-spring:active {
-  transform: translateY(0) scale(0.99);
+  transform: translate3d(0, 0, 0) scale(0.985);
+}
+
+/* Tab content smooth entry animation (fade and slight translate on GPU compositor) */
+@keyframes tab-content-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-tab-enter {
+  animation: tab-content-enter 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
 }
 
 /* Voice pulse wave animation for Ramble AI */
@@ -188,6 +228,11 @@ dialog.sheet::backdrop {
   }
   .animate-pop-in {
     animation: none !important;
+  }
+  .animate-tab-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
   .card-hover-spring {
     transform: none !important;

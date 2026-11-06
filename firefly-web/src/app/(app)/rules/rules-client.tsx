@@ -33,6 +33,7 @@ import { cn, formatDate, isoDate, monthRange, parseAmount } from "@/lib/utils";
 import { CategoryCascadeSelect } from "@/components/category-cascade";
 import { TransactionRow } from "@/components/transaction-row";
 import {
+  AnimatedTabs,
   Badge,
   Button,
   Card,
@@ -119,34 +120,23 @@ export function RulesClient() {
         subtitle="Configure Firefly III's automatic rule engine, recurring transactions, and bills"
       />
 
-      <div role="tablist" aria-label="Automation sections" className="flex flex-wrap gap-1 rounded-2xl bg-surface-2 p-1">
-        {(
-          [
-            { key: "rules", label: "Automatic Rules", icon: Wand2 },
-            { key: "recurrences", label: "Recurring Transactions", icon: Repeat },
-            { key: "bills", label: "Bills & Subscriptions", icon: Sparkles },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            type="button"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors",
-              tab === t.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
-            )}
-          >
-            <t.icon className="size-4" aria-hidden />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <AnimatedTabs
+        tabs={[
+          { key: "rules", label: "Automatic Rules", icon: Wand2 },
+          { key: "recurrences", label: "Recurring Transactions", icon: Repeat },
+          { key: "bills", label: "Bills & Subscriptions", icon: Sparkles },
+        ]}
+        activeTab={tab}
+        onChange={setTab}
+        size="lg"
+        ariaLabel="Automation sections"
+      />
 
-      {tab === "rules" && <RulesSection />}
-      {tab === "recurrences" && <RecurrencesSection />}
-      {tab === "bills" && <BillsSection />}
+      <div key={`section-${tab}`} className="animate-tab-enter">
+        {tab === "rules" && <RulesSection />}
+        {tab === "recurrences" && <RecurrencesSection />}
+        {tab === "bills" && <BillsSection />}
+      </div>
     </div>
   );
 }

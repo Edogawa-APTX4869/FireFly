@@ -19,7 +19,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]",
+        "inline-flex cursor-pointer select-none items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variant === "primary" && "bg-primary text-primary-fg hover:opacity-90 active:opacity-95 shadow-2xs",
@@ -137,8 +137,9 @@ export function Skeleton({ className }: { className?: string }) {
 }
 
 import { AnimatedMoney, AnimatedNumber } from "@/components/animated-number";
+import { AnimatedTabs, type AnimatedTabsProps, type TabItem } from "@/components/animated-tabs";
 
-export { AnimatedMoney, AnimatedNumber };
+export { AnimatedMoney, AnimatedNumber, AnimatedTabs, type AnimatedTabsProps, type TabItem };
 
 export function Money({
   amount,

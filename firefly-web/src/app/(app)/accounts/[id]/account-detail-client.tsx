@@ -69,6 +69,7 @@ export function AccountDetailClient({ id }: { id: string }) {
                 <p className="text-xs text-muted">Current balance</p>
                 <p className="text-2xl font-bold">
                   <Money
+                    animated
                     amount={a.current_balance}
                     code={a.currency_code}
                     decimals={a.currency_decimal_places}

@@ -63,6 +63,7 @@ import { TransactionRow } from "@/components/transaction-row";
 import {
   AnimatedMoney,
   AnimatedNumber,
+  AnimatedTabs,
   Badge,
   Button,
   Card,
@@ -547,35 +548,24 @@ export function DashboardClient() {
             />
           </p>
         </div>
-        <div role="tablist" className="grid grid-cols-2 gap-1 rounded-xl bg-surface-2 p-1 sm:w-72">
-          {(
-            [
-              { key: "accounts", label: "Accounts" },
-              { key: "budgets", label: "Budgets & Goals" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={topTab === t.key}
-              onClick={() => setTopTab(t.key)}
-              className={cn(
-                "h-9 rounded-lg text-sm font-medium transition-colors",
-                topTab === t.key ? "bg-surface text-fg shadow-sm" : "text-muted hover:text-fg",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <AnimatedTabs
+          tabs={[
+            { key: "accounts", label: "Accounts" },
+            { key: "budgets", label: "Budgets & Goals" },
+          ]}
+          activeTab={topTab}
+          onChange={setTopTab}
+          className="grid grid-cols-2 sm:w-72"
+          ariaLabel="Dashboard views"
+        />
       </div>
 
 
       <ErrorBox error={accountsQ.error || summaryQ.error} />
 
       {/* Top Panel: My Accounts in Wallet (Multi-Select Tiles) OR Budgets & Goals */}
-      {topTab === "accounts" ? (
+      <div key={`top-${topTab}`} className="animate-tab-enter">
+        {topTab === "accounts" ? (
         <Card className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -761,33 +751,34 @@ export function DashboardClient() {
           )}
         </Card>
       )}
+      </div>
 
       {/* Horizontal Quick-Action Pills (Planned payments, Debts, Budgets, Piggy Banks, Rules) */}
       <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
         <Link
           href="/rules?tab=recurrences"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs hover:bg-surface-2"
+          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
         >
           <Repeat className="size-3.5 text-warning" aria-hidden />
           Planned payments
         </Link>
         <a
           href="#card-liabilities"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs hover:bg-surface-2"
+          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
         >
           <CreditCard className="size-3.5 text-danger" aria-hidden />
           Debts & Liabilities
         </a>
         <Link
           href="/budgets"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs hover:bg-surface-2"
+          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
         >
           <TrendingUp className="size-3.5 text-success" aria-hidden />
           Budgets
         </Link>
         <Link
           href="/piggy-banks"
-          className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs hover:bg-surface-2"
+          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
         >
           <PiggyBank className="size-3.5 text-primary" aria-hidden />
           Savings Goals
