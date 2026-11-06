@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Baby,
@@ -266,12 +266,25 @@ export function ResourceIconBadge({
   entityId: string;
   defaultIcon?: string;
   defaultColor?: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   editable?: boolean;
 }) {
   const meta = useResourceMeta();
   const updateMut = useUpdateResourceMeta();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [open]);
 
   const item = meta.get(entityType, entityId);
   const iconName = item?.icon || defaultIcon;
@@ -292,68 +305,85 @@ export function ResourceIconBadge({
         style={color ? { backgroundColor: `${color}22`, color } : undefined}
         className={cn(
           "flex items-center justify-center rounded-xl transition-transform",
-          size === "sm" ? "size-7" : "size-9",
+          size === "sm" ? "size-7" : size === "lg" ? "size-11" : "size-9",
           !color && "bg-primary-soft text-primary",
           editable && "hover:scale-105 cursor-pointer",
         )}
       >
-        <IconComp className={size === "sm" ? "size-3.5" : "size-4"} aria-hidden />
+        <IconComp className={size === "sm" ? "size-3.5" : size === "lg" ? "size-5" : "size-4"} aria-hidden />
       </button>
 
       {open && (
-        <div
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          className="fixed inset-x-4 top-24 z-50 mx-auto max-w-xs rounded-2xl border border-border bg-surface p-3 shadow-2xl sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:mt-1.5 sm:w-72"
-        >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold">Choose Icon &amp; Color</span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-2"
-            >
-              Done
-            </button>
-          </div>
+        <>
+          {/* Invisible / subtle backdrop to dismiss on click outside */}
+          <div
+            className="fixed inset-0 z-40 bg-black/10 backdrop-blur-2xs cursor-default"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }}
+            aria-hidden="true"
+          />
 
-          {/* Color swatches */}
-          <div className="mb-2.5 flex flex-wrap gap-1.5">
-            {COLOR_PALETTE.map((c) => (
+          <div
+            role="dialog"
+            aria-label="Choose Icon & Color"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            className="fixed inset-x-4 top-24 z-50 mx-auto max-w-xs animate-pop-in rounded-2xl border border-border bg-surface p-3.5 shadow-2xl sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:mt-1.5 sm:w-72"
+          >
+            <div className="mb-2.5 flex items-center justify-between">
+              <span className="text-xs font-semibold">Choose Icon &amp; Color</span>
               <button
-                key={c}
                 type="button"
-                onClick={() => updateMut.mutate({ entity_type: entityType, entity_id: entityId, color: c })}
-                style={{ backgroundColor: c }}
-                className={cn("size-5 rounded-full border-2", color === c ? "border-fg scale-110" : "border-transparent")}
-                aria-label={`Color ${c}`}
-              />
-            ))}
-          </div>
-
-          {/* Icon grid */}
-          <div className="grid max-h-48 grid-cols-7 gap-1 overflow-y-auto p-0.5">
-            {Object.entries(ICON_CATALOG).map(([name, Comp]) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => {
-                  updateMut.mutate({ entity_type: entityType, entity_id: entityId, icon: name });
-                  setOpen(false);
-                }}
-                title={name}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg hover:bg-surface-2",
-                  iconName === name && "bg-primary-soft text-primary ring-1 ring-primary",
-                )}
+                onClick={() => setOpen(false)}
+                className="cursor-pointer rounded-lg px-2 py-0.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg active:scale-95"
               >
-                <Comp className="size-4" />
+                Done
               </button>
-            ))}
+            </div>
+
+            {/* Color swatches */}
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              {COLOR_PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => updateMut.mutate({ entity_type: entityType, entity_id: entityId, color: c })}
+                  style={{ backgroundColor: c }}
+                  className={cn(
+                    "size-5 cursor-pointer rounded-full border-2 transition-transform active:scale-90",
+                    color === c ? "border-fg scale-110 shadow-xs" : "border-transparent hover:scale-105",
+                  )}
+                  aria-label={`Color ${c}`}
+                />
+              ))}
+            </div>
+
+            {/* Icon grid */}
+            <div className="grid max-h-48 grid-cols-7 gap-1 overflow-y-auto p-0.5">
+              {Object.entries(ICON_CATALOG).map(([name, Comp]) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => {
+                    updateMut.mutate({ entity_type: entityType, entity_id: entityId, icon: name });
+                    setOpen(false);
+                  }}
+                  title={name}
+                  className={cn(
+                    "flex size-8 cursor-pointer items-center justify-center rounded-lg transition-all hover:bg-surface-2 active:scale-90",
+                    iconName === name && "bg-primary-soft text-primary ring-1 ring-primary font-bold",
+                  )}
+                >
+                  <Comp className="size-4" />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

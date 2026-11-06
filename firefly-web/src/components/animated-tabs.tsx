@@ -52,14 +52,11 @@ export function AnimatedTabs<T extends string = string>({
     const activeButton = container.querySelector<HTMLElement>(`[data-tab-key="${activeTab}"]`);
     if (!activeButton) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const buttonRect = activeButton.getBoundingClientRect();
-
     setIndicator({
-      left: buttonRect.left - containerRect.left,
-      top: buttonRect.top - containerRect.top,
-      width: buttonRect.width,
-      height: buttonRect.height,
+      left: activeButton.offsetLeft,
+      top: activeButton.offsetTop,
+      width: activeButton.offsetWidth,
+      height: activeButton.offsetHeight,
       ready: true,
     });
   }, [activeTab]);
@@ -91,7 +88,7 @@ export function AnimatedTabs<T extends string = string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        "relative flex flex-wrap items-center gap-1 rounded-2xl bg-surface-2 p-1",
+        "relative inline-flex flex-wrap items-center gap-1 rounded-2xl bg-surface-2 p-1",
         className,
       )}
     >
@@ -99,7 +96,7 @@ export function AnimatedTabs<T extends string = string>({
       {indicator.ready ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute z-0 rounded-xl bg-surface shadow-xs transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+          className="pointer-events-none absolute top-0 left-0 z-0 rounded-xl bg-surface shadow-xs transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
           style={{
             transform: `translate3d(${indicator.left}px, ${indicator.top}px, 0)`,
             width: `${indicator.width}px`,

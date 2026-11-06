@@ -107,6 +107,21 @@ export const api = {
 
   accounts: (type: string = "all") => getAll<Account>("accounts", { type }),
   account: (id: string) => ff.get<SingleResponse<Account>>(`accounts/${id}`).then((r) => r.data),
+  updateAccount: (id: string, payload: Partial<Account>) =>
+    ff.put<SingleResponse<Account>>(`accounts/${id}`, payload),
+  createAccount: (payload: {
+    name: string;
+    type: string;
+    currency_code?: string;
+    account_role?: string;
+    iban?: string;
+    account_number?: string;
+    opening_balance?: string;
+    opening_balance_date?: string;
+    notes?: string;
+  }) =>
+    ff.post<SingleResponse<Account>>("accounts", payload),
+  deleteAccount: (id: string) => ff.del(`accounts/${id}`),
   accountTransactions: (id: string, page = 1, params: Params = {}) =>
     ff.get<ListResponse<TransactionGroup>>(`accounts/${id}/transactions`, { page, limit: 50, ...params }),
 
