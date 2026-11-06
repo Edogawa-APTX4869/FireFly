@@ -31,6 +31,7 @@ import { ASSET_LIKE, useAccounts, usePrimaryCurrency } from "@/lib/hooks";
 import { cn, isoDate, monthRange } from "@/lib/utils";
 import { Badge, Button, Field, Input, ModalSheet, Select } from "@/components/ui";
 import { useToast } from "@/components/providers";
+import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 
 export interface ChatDraftItem extends ParsedTransactionDraft {
   id: string;
@@ -127,6 +128,7 @@ export function MagicChatPanel({
   const [attachments, setAttachments] = useState<AttachmentPayload[]>([]);
   const [listening, setListening] = useState(false);
   const [expanded, setExpanded] = useState(mode === "inline");
+  useEscapeDismiss(mode === "dock" && expanded, () => setExpanded(false), "magic-chat-dock");
   const [messages, setMessages] = useState<MagicChatMessage[]>([]);
   const [llmModalOpen, setLlmModalOpen] = useState(false);
   const [provider, setProvider] = useState<AiProviderType>("gemini");

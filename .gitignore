@@ -54,3 +54,7 @@ yarn-error.log*
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite-*
+
+# Agent logs & scratch
+.agents/
+

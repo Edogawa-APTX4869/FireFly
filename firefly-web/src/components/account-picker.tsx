@@ -5,6 +5,7 @@ import { Check, ChevronDown, Search } from "lucide-react";
 import type { Account, Resource } from "@/lib/firefly/types";
 import { cn } from "@/lib/utils";
 import { Money } from "@/components/ui";
+import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 
 const GROUP_LABEL: Record<string, string> = {
   asset: "Asset accounts",
@@ -50,6 +51,8 @@ export function AccountPicker({
       );
   }, [accounts, q, excludeId]);
 
+  useEscapeDismiss(open, () => setOpen(false), "account-picker");
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -67,9 +70,7 @@ export function AccountPicker({
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      setOpen(false);
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => Math.min(options.length - 1, i + 1));
     } else if (e.key === "ArrowUp") {

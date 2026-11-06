@@ -51,6 +51,7 @@ export interface Account {
   notes?: string | null;
   order?: number | null;
   object_group_title?: string | null;
+  opening_balance_date?: string | null;
 }
 
 export type TransactionType =

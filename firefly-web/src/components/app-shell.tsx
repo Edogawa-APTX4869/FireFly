@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   List,
   Menu,
+  Monitor,
   Moon,
   PieChart,
   Plus,
@@ -21,6 +22,8 @@ import {
 import { cn } from "@/lib/utils";
 import { SpeedDialFab } from "@/components/speed-dial-fab";
 import { MagicChatbar } from "@/components/magic-chatbar";
+import { useTheme } from "@/components/theme-provider";
+import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 
 interface NavChild {
   href: string;
@@ -248,18 +251,15 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { theme, resolvedTheme, cycleTheme } = useTheme();
 
-  function cycleTheme() {
-    try {
-      const meta = document.querySelector('meta[name="color-scheme"]');
-      const cur = meta?.getAttribute("content") || "light dark";
-      const next = cur === "dark" ? "light" : "dark";
-      meta?.setAttribute("content", next);
-      localStorage.setItem("ff-theme", next);
-    } catch {
-      /* ignore */
-    }
-  }
+  useEscapeDismiss(drawerOpen, () => setDrawerOpen(false), "mobile-nav-drawer");
+
+  const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+  const currentLabel = theme === "system" ? `System (${resolvedTheme})` : theme === "light" ? "Light" : "Dark";
+  const nextLabel = nextTheme === "system" ? "System" : nextTheme === "light" ? "Light" : "Dark";
+  const themeTitle = `Theme: ${currentLabel} (click for ${nextLabel})`;
+  const themeAriaLabel = `Current theme: ${currentLabel}. Switch to ${nextLabel} theme`;
 
   // Keyboard shortcuts: N = new expense, T = transfer, I = income, / = search transactions (ignored while typing).
   useEffect(() => {
@@ -293,17 +293,19 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
           <button
             type="button"
             onClick={cycleTheme}
-            aria-label="Toggle light or dark theme"
-            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
+            aria-label={themeAriaLabel}
+            title={themeTitle}
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
           >
-            <Sun className="size-4 dark:hidden" />
-            <Moon className="hidden size-4 dark:block" />
+            {theme === "system" && <Monitor className="size-4" aria-hidden />}
+            {theme === "light" && <Sun className="size-4" aria-hidden />}
+            {theme === "dark" && <Moon className="size-4" aria-hidden />}
           </button>
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open full navigation menu"
-            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-fg active:scale-95 transition-all"
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-fg active:scale-95 transition-all"
           >
             <Menu className="size-4" />
           </button>
@@ -326,7 +328,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close navigation menu"
-                className="rounded-lg p-2 text-muted hover:bg-surface-2 active:scale-95 transition-all"
+                className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 active:scale-95 transition-all"
               >
                 <X className="size-5" />
               </button>
@@ -367,12 +369,13 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
           <button
             type="button"
             onClick={cycleTheme}
-            aria-label="Toggle light or dark theme"
-            title="Switch light/dark theme"
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 text-muted hover:text-fg"
+            aria-label={themeAriaLabel}
+            title={themeTitle}
+            className="flex min-h-[48px] min-w-[48px] size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
           >
-            <Sun className="size-4 dark:hidden" />
-            <Moon className="hidden size-4 dark:block" />
+            {theme === "system" && <Monitor className="size-4" aria-hidden />}
+            {theme === "light" && <Sun className="size-4" aria-hidden />}
+            {theme === "dark" && <Moon className="size-4" aria-hidden />}
           </button>
         </div>
       </aside>

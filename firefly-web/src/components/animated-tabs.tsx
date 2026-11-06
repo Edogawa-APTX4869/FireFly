@@ -119,9 +119,9 @@ export function AnimatedTabs<T extends string = string>({
             onClick={() => onChange(tab.key)}
             className={cn(
               "group relative z-10 flex cursor-pointer select-none items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200 active:scale-[0.97]",
-              size === "sm" && "h-8 px-2.5 text-xs",
-              size === "md" && "h-9 px-3.5 text-sm",
-              size === "lg" && "h-10 px-4 text-sm",
+              size === "sm" && "min-h-[48px] min-w-[48px] h-12 px-3 text-xs",
+              size === "md" && "min-h-[48px] min-w-[48px] h-12 px-4 text-sm",
+              size === "lg" && "min-h-[48px] min-w-[48px] h-12 px-5 text-sm",
               isActive
                 ? cn("text-fg font-semibold", !indicator.ready && "bg-surface shadow-xs")
                 : "text-muted hover:text-fg hover:bg-surface/50",

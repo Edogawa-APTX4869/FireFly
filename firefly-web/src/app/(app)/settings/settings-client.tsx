@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js";
@@ -41,28 +41,7 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useToast } from "@/components/providers";
-
-type SchemePref = "system" | "light" | "dark";
-
-function readStoredScheme(): SchemePref {
-  try {
-    const val = localStorage.getItem("color-scheme");
-    return val === "light" || val === "dark" ? val : "system";
-  } catch {
-    return "system";
-  }
-}
-
-function applyScheme(pref: SchemePref) {
-  try {
-    if (pref === "system") localStorage.removeItem("color-scheme");
-    else localStorage.setItem("color-scheme", pref);
-  } catch {
-    /* ignore */
-  }
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
-  if (meta) meta.content = pref === "system" ? "light dark" : pref;
-}
+import { useTheme } from "@/components/theme-provider";
 
 const CONFIG_LABELS: Record<string, { label: string; desc: string }> = {
   "configuration.enable_exchange_rates": {
@@ -96,31 +75,8 @@ export function SettingsClient() {
   const qc = useQueryClient();
   const toast = useToast();
 
-  const [scheme, setScheme] = useState<SchemePref>(() =>
-    typeof window !== "undefined" ? readStoredScheme() : "system",
-  );
-  const [sysDark, setSysDark] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)").matches : false,
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onMq = (e: MediaQueryListEvent) => setSysDark(e.matches);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "color-scheme") {
-        const next = readStoredScheme();
-        setScheme(next);
-        const meta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
-        if (meta) meta.content = next === "system" ? "light dark" : next;
-      }
-    };
-    mq.addEventListener("change", onMq);
-    window.addEventListener("storage", onStorage);
-    return () => {
-      mq.removeEventListener("change", onMq);
-      window.removeEventListener("storage", onStorage);
-    };
-  }, []);
+  const { theme, resolvedTheme, setTheme, systemTheme } = useTheme();
+  const isSystemDark = (systemTheme ?? (resolvedTheme === "dark" ? "dark" : "light")) === "dark";
 
   const sessionQ = useQuery({
     queryKey: ["session"],
@@ -428,24 +384,21 @@ export function SettingsClient() {
             [
               {
                 key: "system",
-                label: `System (${sysDark ? "currently dark" : "currently light"})`,
+                label: `System (${isSystemDark ? "currently dark" : "currently light"})`,
                 icon: Monitor,
               },
               { key: "light", label: "Light", icon: Sun },
               { key: "dark", label: "Dark", icon: Moon },
             ] as const
           ).map((opt) => {
-            const checked = scheme === opt.key;
+            const checked = theme === opt.key;
             return (
               <button
                 key={opt.key}
                 type="button"
                 role="radio"
                 aria-checked={checked}
-                onClick={() => {
-                  setScheme(opt.key);
-                  applyScheme(opt.key);
-                }}
+                onClick={() => setTheme(opt.key)}
                 className={cn(
                   "flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
                   checked ? "border-primary bg-primary-soft text-primary" : "border-border hover:bg-surface-2",

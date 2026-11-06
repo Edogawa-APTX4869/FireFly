@@ -114,6 +114,7 @@ export const api = {
     type: string;
     currency_code?: string;
     account_role?: string;
+    liability_type?: string;
     iban?: string;
     account_number?: string;
     opening_balance?: string;

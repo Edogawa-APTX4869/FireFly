@@ -1,13 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowLeftRight, Pencil, Plus } from "lucide-react";
-import { api } from "@/lib/firefly/api";
-import type { Account } from "@/lib/firefly/types";
+import Decimal from "decimal.js";
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Pencil,
+  Plus,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { api, getAll } from "@/lib/firefly/api";
+import type { Account, TransactionGroup } from "@/lib/firefly/types";
 import { inferAccountDefaultStyle, ResourceIconBadge } from "@/components/resource-icon";
 import { TransactionRow } from "@/components/transaction-row";
+import { cn, formatDate, isoDate } from "@/lib/utils";
 import {
   Badge,
   Button,
@@ -23,6 +35,120 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useToast } from "@/components/providers";
+
+export interface AccountKpiStats {
+  inflow: Decimal;
+  outflow: Decimal;
+  netChange: Decimal;
+  count: number;
+}
+
+export function computeAccount30dKpi(
+  groups: Array<{ attributes: { transactions: Array<{ type: string; amount: string; destination_id?: string | null; source_id?: string | null; foreign_amount?: string | null }> } }>,
+  accountId: string,
+): AccountKpiStats {
+  let inflow = new Decimal(0);
+  let outflow = new Decimal(0);
+  let count = 0;
+
+  for (const group of groups || []) {
+    for (const split of group.attributes?.transactions || []) {
+      let rawDec: Decimal;
+      try {
+        rawDec = new Decimal(split.amount || "0");
+      } catch {
+        rawDec = new Decimal(0);
+      }
+      const amt = rawDec.abs();
+
+      if (split.type === "deposit") {
+        if (split.destination_id === accountId || !split.destination_id) {
+          inflow = inflow.plus(amt);
+          count++;
+        }
+      } else if (split.type === "withdrawal") {
+        if (split.source_id === accountId) {
+          outflow = outflow.plus(amt);
+          count++;
+        }
+      } else if (split.type === "transfer") {
+        let matched = false;
+        if (split.destination_id === accountId) {
+          let destAmt = amt;
+          if (split.foreign_amount && split.foreign_amount.trim()) {
+            try {
+              destAmt = new Decimal(split.foreign_amount.trim()).abs();
+            } catch {
+              destAmt = amt;
+            }
+          }
+          inflow = inflow.plus(destAmt);
+          matched = true;
+        }
+        if (split.source_id === accountId) {
+          outflow = outflow.plus(amt);
+          matched = true;
+        }
+        if (matched) {
+          count++;
+        }
+      } else if (split.type === "opening balance" || split.type === "reconciliation") {
+        if (
+          split.destination_id === accountId ||
+          split.source_id === accountId ||
+          (!split.destination_id && !split.source_id)
+        ) {
+          if (rawDec.gte(0)) {
+            inflow = inflow.plus(amt);
+          } else {
+            outflow = outflow.plus(amt);
+          }
+          count++;
+        }
+      }
+    }
+  }
+
+  return {
+    inflow,
+    outflow,
+    netChange: inflow.minus(outflow),
+    count,
+  };
+}
+
+function formatAccountRole(roleOrType?: string | null): string {
+  if (!roleOrType) return "—";
+  switch (roleOrType) {
+    case "defaultAsset":
+      return "Default asset account";
+    case "savingAsset":
+      return "Savings account";
+    case "sharedAsset":
+      return "Shared asset account";
+    case "ccAsset":
+      return "Credit card account";
+    case "cashWalletAsset":
+      return "Cash wallet";
+    case "loan":
+      return "Loan liability";
+    case "debt":
+      return "Debt liability";
+    case "mortgage":
+      return "Mortgage liability";
+    case "asset":
+      return "Asset account";
+    case "liability":
+    case "liabilities":
+      return "Liability account";
+    case "expense":
+      return "Expense account";
+    case "revenue":
+      return "Revenue account";
+    default:
+      return roleOrType;
+  }
+}
 
 export function AccountDetailClient({ id }: { id: string }) {
   const qc = useQueryClient();
@@ -44,6 +170,22 @@ export function AccountDetailClient({ id }: { id: string }) {
     },
   });
 
+  const { start30d, end30d } = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return { start30d: isoDate(start), end30d: isoDate(end) };
+  }, []);
+
+  const kpiQ = useQuery({
+    queryKey: ["account-transactions-30d", id, start30d, end30d],
+    queryFn: () => getAll<TransactionGroup>(`accounts/${id}/transactions`, { start: start30d, end: end30d }),
+    staleTime: 60_000,
+  });
+
+  const stats = useMemo(() => {
+    return computeAccount30dKpi(kpiQ.data ?? [], id);
+  }, [kpiQ.data, id]);
+
   const delMut = useMutation({
     mutationFn: (txId: string) => api.deleteTransaction(txId),
     onSuccess: () => {
@@ -52,6 +194,7 @@ export function AccountDetailClient({ id }: { id: string }) {
       qc.invalidateQueries({ queryKey: ["account", id] });
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["account-transactions-30d", id] });
     },
     onError: (e) => toast((e as Error).message, "error"),
   });
@@ -86,6 +229,19 @@ export function AccountDetailClient({ id }: { id: string }) {
   const a = accQ.data?.attributes;
   const inferred = a ? inferAccountDefaultStyle(a, Number(id) || 0) : { icon: "Landmark", color: "#6366f1" };
   const groups = txQ.data?.pages.flatMap((p) => p.data) ?? [];
+
+  const openingDate = a?.opening_balance_date
+    ? formatDate(a.opening_balance_date)
+    : (() => {
+        for (const group of groups) {
+          for (const split of group.attributes.transactions) {
+            if (split.type === "opening balance" && split.date) {
+              return formatDate(split.date);
+            }
+          }
+        }
+        return "—";
+      })();
 
   return (
     <div className="flex flex-col gap-5">
@@ -159,7 +315,156 @@ export function AccountDetailClient({ id }: { id: string }) {
         />
       ) : null}
 
-      <ErrorBox error={accQ.error || txQ.error} />
+      <ErrorBox error={accQ.error || txQ.error || kpiQ.error} />
+
+      {/* 30-Day KPI Summary Cards */}
+      {kpiQ.isLoading ? (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {/* Inflow Card */}
+          <Card className="flex flex-col justify-between gap-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">30D Inflow</span>
+              <span className="flex size-7 items-center justify-center rounded-lg bg-success-soft text-success">
+                <ArrowDownLeft className="size-4" aria-hidden />
+              </span>
+            </div>
+            <div>
+              <p className="text-lg font-bold sm:text-xl">
+                <Money
+                  amount={stats.inflow.toString()}
+                  code={a?.currency_code}
+                  decimals={a?.currency_decimal_places}
+                  symbol={a?.currency_symbol}
+                />
+              </p>
+              <p className="text-[11px] text-muted">Total received (30d)</p>
+            </div>
+          </Card>
+
+          {/* Outflow Card */}
+          <Card className="flex flex-col justify-between gap-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">30D Outflow</span>
+              <span className="flex size-7 items-center justify-center rounded-lg bg-danger-soft text-danger">
+                <ArrowUpRight className="size-4" aria-hidden />
+              </span>
+            </div>
+            <div>
+              <p className="text-lg font-bold sm:text-xl">
+                <Money
+                  amount={stats.outflow.toString()}
+                  code={a?.currency_code}
+                  decimals={a?.currency_decimal_places}
+                  symbol={a?.currency_symbol}
+                />
+              </p>
+              <p className="text-[11px] text-muted">Total spent (30d)</p>
+            </div>
+          </Card>
+
+          {/* Net 30D Change Card */}
+          <Card className="flex flex-col justify-between gap-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">Net 30D Change</span>
+              <span
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-lg",
+                  stats.netChange.gte(0)
+                    ? "bg-success-soft text-success"
+                    : "bg-danger-soft text-danger",
+                )}
+              >
+                {stats.netChange.gte(0) ? (
+                  <TrendingUp className="size-4" aria-hidden />
+                ) : (
+                  <TrendingDown className="size-4" aria-hidden />
+                )}
+              </span>
+            </div>
+            <div>
+              <p
+                className={cn(
+                  "text-lg font-bold sm:text-xl",
+                  stats.netChange.gte(0) ? "text-success" : "text-danger",
+                )}
+              >
+                <Money
+                  amount={stats.netChange.toString()}
+                  code={a?.currency_code}
+                  decimals={a?.currency_decimal_places}
+                  symbol={a?.currency_symbol}
+                  signed
+                />
+              </p>
+              <p className="text-[11px] text-muted">Inflow vs outflow</p>
+            </div>
+          </Card>
+
+          {/* 30D Transactions Count Card */}
+          <Card className="flex flex-col justify-between gap-2 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted">30D Transactions</span>
+              <span className="flex size-7 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                <Receipt className="size-4" aria-hidden />
+              </span>
+            </div>
+            <div>
+              <p className="text-lg font-bold sm:text-xl">{stats.count}</p>
+              <p className="text-[11px] text-muted">Total entries in 30 days</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Account Metadata Card */}
+      {a && (
+        <Card className="flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h2 className="text-sm font-semibold text-fg">Account Metadata</h2>
+            {a.liability_type && (
+              <Badge tone="warning">Liability: {a.liability_type}</Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-xs font-medium text-muted">IBAN</p>
+              <p className="mt-1 font-mono text-sm font-medium">{a.iban || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted">Role</p>
+              <p className="mt-1 text-sm font-medium">{formatAccountRole(a.account_role || a.liability_type || a.type)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted">Opening balance date</p>
+              <p className="mt-1 text-sm font-medium">{openingDate}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted">Currency</p>
+              <p className="mt-1 text-sm font-medium">
+                {a.currency_code ? `${a.currency_code}${a.currency_symbol ? ` (${a.currency_symbol})` : ""}` : "—"}
+              </p>
+            </div>
+          </div>
+          {a.notes ? (
+            <div className="border-t border-border pt-3">
+              <p className="text-xs font-medium text-muted">Notes</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-fg/90">{a.notes}</p>
+            </div>
+          ) : (
+            <div className="border-t border-border pt-3">
+              <p className="text-xs font-medium text-muted">Notes</p>
+              <p className="mt-1 text-xs italic text-muted">No notes recorded</p>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card>
         {txQ.isLoading ? (

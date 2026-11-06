@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Decimal from "decimal.js";
-import { ArrowLeftRight, Building2, CreditCard, Landmark, Search, Store, Wallet, X } from "lucide-react";
+import { ArrowLeftRight, Building2, CreditCard, Landmark, Plus, Search, Store, Wallet, X } from "lucide-react";
 import type { Account, Resource } from "@/lib/firefly/types";
 import { useAccounts, usePrimaryCurrency, useRatesToPrimary } from "@/lib/hooks";
 import { cn, formatDate, isoDate } from "@/lib/utils";
 import { inferAccountDefaultStyle, ResourceIconBadge } from "@/components/resource-icon";
+import { CreateAccountModal } from "@/components/create-account-modal";
 import { AnimatedTabs, Badge, Button, Card, EmptyState, ErrorBox, Input, Money, PageHeader, Skeleton } from "@/components/ui";
 
 type GroupKey = "asset" | "liabilities" | "expense" | "revenue";
@@ -34,7 +35,22 @@ export function AccountsClient() {
   const tab: GroupKey = GROUPS.some((g) => g.key === rawTab) ? (rawTab as GroupKey) : "asset";
   const setTab = (next: GroupKey) => router.replace(`/accounts?tab=${next}`, { scroll: false });
   const [search, setSearch] = useState("");
+  const createFromQuery = searchParams.get("create") === "1" || searchParams.get("create") === "true";
+  const [createOpen, setCreateOpen] = useState(false);
+  const isCreateOpen = createOpen || createFromQuery;
+  const handleCloseCreate = () => {
+    setCreateOpen(false);
+    if (createFromQuery) {
+      router.replace(`/accounts?tab=${tab}`, { scroll: false });
+    }
+  };
   const today = isoDate();
+
+  useEffect(() => {
+    const handler = () => setCreateOpen(true);
+    window.addEventListener("ff:open-create-account", handler);
+    return () => window.removeEventListener("ff:open-create-account", handler);
+  }, []);
 
   const currentGroup = GROUPS.find((g) => g.key === tab) ?? GROUPS[0];
   const filtered = useMemo(() => {
@@ -82,11 +98,16 @@ export function AccountsClient() {
         title="Accounts"
         subtitle="Balances across all currencies with automatic conversion to your main currency"
         actions={
-          <Link href="/new?type=transfer">
-            <Button size="sm">
-              <ArrowLeftRight className="size-4" aria-hidden /> New transfer
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" aria-hidden /> New account
             </Button>
-          </Link>
+            <Link href="/new?type=transfer">
+              <Button size="sm" variant="secondary">
+                <ArrowLeftRight className="size-4" aria-hidden /> New transfer
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -142,7 +163,11 @@ export function AccountsClient() {
         </div>
       ) : filtered.length === 0 ? (
         <div key={`empty-${tab}`} className="animate-tab-enter">
-          <EmptyState title={`No ${currentGroup.label.toLowerCase()} found`} />
+          <EmptyState title={`No ${currentGroup.label.toLowerCase()} found`}>
+            <Button size="sm" onClick={() => setCreateOpen(true)} className="mt-2">
+              <Plus className="size-4" aria-hidden /> New account
+            </Button>
+          </EmptyState>
         </div>
       ) : (
         <div key={`grid-${tab}`} className="animate-tab-enter grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -159,6 +184,12 @@ export function AccountsClient() {
           ))}
         </div>
       )}
+
+      <CreateAccountModal
+        open={isCreateOpen}
+        onClose={handleCloseCreate}
+        initialType={tab}
+      />
     </div>
   );
 }

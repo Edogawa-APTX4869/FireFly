@@ -1,8 +1,9 @@
 "use client";
 
-import { forwardRef, useEffect, useId } from "react";
+import { forwardRef, useId } from "react";
 import { Loader2, X } from "lucide-react";
 import { cn, formatMoney } from "@/lib/utils";
+import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -26,10 +27,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         variant === "secondary" && "border border-border bg-surface hover:bg-surface-2",
         variant === "ghost" && "hover:bg-surface-2",
         variant === "danger" && "bg-danger text-white hover:opacity-90 active:opacity-95",
-        size === "sm" && "h-8 px-3 text-sm",
-        size === "md" && "h-10 px-4 text-sm",
-        size === "lg" && "h-12 px-6 text-base",
-        size === "icon" && "size-10",
+        size === "sm" && "min-h-[48px] min-w-[48px] px-3.5 text-sm",
+        size === "md" && "min-h-[48px] h-12 px-4 text-sm",
+        size === "lg" && "min-h-[52px] h-[52px] px-6 text-base",
+        size === "icon" && "min-h-[48px] min-w-[48px] size-12",
         className,
       )}
       {...props}
@@ -264,14 +265,7 @@ export function ModalSheet({
   maxWidth?: string;
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscapeDismiss(open, onClose);
 
   if (!open) return null;
 
@@ -303,9 +297,9 @@ export function ModalSheet({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="rounded-xl p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-all"
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </div>
 

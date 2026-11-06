@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 import {
   Baby,
   Banknote,
@@ -273,18 +274,7 @@ export function ResourceIconBadge({
   const updateMut = useUpdateResourceMeta();
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [open]);
+  useEscapeDismiss(open, () => setOpen(false), "resource-icon-picker");
 
   const item = meta.get(entityType, entityId);
   const iconName = item?.icon || defaultIcon;

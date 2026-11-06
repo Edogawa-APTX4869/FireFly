@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { FireflyError } from "@/lib/firefly/api";
 import { cn } from "@/lib/utils";
+import { ThemeProvider } from "@/components/theme-provider";
 
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
 const ToastCtx = createContext<(message: string, tone?: Toast["tone"]) => void>(() => {});
@@ -40,28 +41,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={client}>
-      <ToastCtx.Provider value={push}>
-        {children}
-        <div
-          role="status"
-          aria-live="polite"
-          className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-6"
-        >
-          {toasts.map((t) => (
-            <div
-              key={t.id}
-              className={cn(
-                "fade-in pointer-events-auto rounded-xl px-4 py-3 text-sm font-medium shadow-lg",
-                t.tone === "success" && "bg-success text-white",
-                t.tone === "error" && "bg-danger text-white",
-                t.tone === "info" && "bg-fg text-bg",
-              )}
-            >
-              {t.message}
-            </div>
-          ))}
-        </div>
-      </ToastCtx.Provider>
+      <ThemeProvider>
+        <ToastCtx.Provider value={push}>
+          {children}
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-none fixed inset-x-0 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4 md:bottom-6"
+          >
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                className={cn(
+                  "fade-in pointer-events-auto rounded-xl px-4 py-3 text-sm font-medium shadow-lg",
+                  t.tone === "success" && "bg-success text-white",
+                  t.tone === "error" && "bg-danger text-white",
+                  t.tone === "info" && "bg-fg text-bg",
+                )}
+              >
+                {t.message}
+              </div>
+            ))}
+          </div>
+        </ToastCtx.Provider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
