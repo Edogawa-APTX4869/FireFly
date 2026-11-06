@@ -5,7 +5,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
   ChevronDown,
-  Flame,
   FolderTree,
   LayoutDashboard,
   List,
@@ -283,19 +282,19 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/95 px-4 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur md:hidden">
-        <Link href="/" className="flex items-center gap-2 text-base font-bold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-fg">
-            <Flame className="size-4" aria-hidden />
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/95 px-3.5 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur md:hidden">
+        <Link href="/" className="flex items-center gap-2 text-base font-bold tracking-tight">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
+            <Wallet className="size-4" aria-hidden />
           </span>
-          FireFly
+          Wallet
         </Link>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={cycleTheme}
             aria-label="Toggle light or dark theme"
-            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg"
+            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
           >
             <Sun className="size-4 dark:hidden" />
             <Moon className="hidden size-4 dark:block" />
@@ -304,7 +303,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
             type="button"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open full navigation menu"
-            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-fg"
+            className="flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-fg active:scale-95 transition-all"
           >
             <Menu className="size-4" />
           </button>
@@ -315,19 +314,19 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setDrawerOpen(false)} />
-          <aside className="relative z-10 flex h-full w-72 max-w-[82vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl">
+          <aside className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-2 text-lg font-bold">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg">
-                  <Flame className="size-4" aria-hidden />
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
+                  <Wallet className="size-4" aria-hidden />
                 </span>
-                FireFly
+                Wallet
               </Link>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close navigation menu"
-                className="rounded-lg p-1.5 text-muted hover:bg-surface-2"
+                className="rounded-lg p-2 text-muted hover:bg-surface-2 active:scale-95 transition-all"
               >
                 <X className="size-5" />
               </button>
@@ -345,14 +344,14 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface p-4 md:flex">
         <Link href="/" className="mb-5 flex items-center gap-2 px-2 text-lg font-bold">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg">
-            <Flame className="size-4" aria-hidden />
+          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
+            <Wallet className="size-4" aria-hidden />
           </span>
-          FireFly
+          Wallet
         </Link>
         <Link
           href="/new?type=withdrawal"
-          className="mb-4 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-fg hover:opacity-90"
+          className="mb-4 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-fg hover:opacity-90 active:scale-[0.98] transition-all"
         >
           <Plus className="size-4" aria-hidden /> New transaction
         </Link>
@@ -378,7 +377,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 px-4 pt-5 pb-28 md:px-8 md:pt-7 md:pb-24">
+      <main className="min-w-0 flex-1 px-3.5 pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:px-8 md:pt-7 md:pb-24 pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))]">
         <div className="mx-auto w-full max-w-6xl">
           {/* Desktop quick shortcut bar */}
           <div className="mb-5 hidden items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
@@ -409,7 +408,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
       {/* Mobile bottom nav */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden select-none"
       >
         {MOBILE_NAV.map((item) => {
           const active = item.match === "/" ? pathname === "/" : pathname.startsWith(item.match);
@@ -419,12 +418,12 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium",
-                active ? "text-primary" : "text-muted",
+                "flex min-h-[50px] flex-col items-center justify-center gap-1 py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-90",
+                active ? "font-semibold text-primary" : "text-muted hover:text-fg",
               )}
             >
-              <item.icon className="size-5" aria-hidden />
-              {item.label}
+              <item.icon className={cn("size-5 transition-transform duration-200", active && "scale-110")} aria-hidden />
+              <span>{item.label}</span>
             </Link>
           );
         })}

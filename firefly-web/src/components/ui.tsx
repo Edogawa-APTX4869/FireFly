@@ -136,6 +136,10 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-lg bg-surface-2", className)} aria-hidden />;
 }
 
+import { AnimatedMoney, AnimatedNumber } from "@/components/animated-number";
+
+export { AnimatedMoney, AnimatedNumber };
+
 export function Money({
   amount,
   code,
@@ -144,6 +148,7 @@ export function Money({
   signed,
   colored,
   className,
+  animated = false,
 }: {
   amount: string | number | null | undefined;
   code?: string | null;
@@ -152,7 +157,21 @@ export function Money({
   signed?: boolean;
   colored?: boolean;
   className?: string;
+  animated?: boolean;
 }) {
+  if (animated) {
+    return (
+      <AnimatedMoney
+        amount={amount}
+        code={code}
+        decimals={decimals}
+        symbol={symbol}
+        signed={signed}
+        colored={colored}
+        className={className}
+      />
+    );
+  }
   const n = Number(amount ?? 0);
   return (
     <span

@@ -1,7 +1,7 @@
 {
-  "name": "FireFly — Modern Client for Firefly III",
-  "short_name": "FireFly",
-  "description": "Fast personal finance client for Firefly III with automatic cross-currency transfers.",
+  "name": "Wallet — Modern Personal Finance",
+  "short_name": "Wallet",
+  "description": "Fast personal finance and net-worth tracker with automatic cross-currency intelligence.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#161821",

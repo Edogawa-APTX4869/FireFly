@@ -7,10 +7,10 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "FireFly", template: "%s · FireFly" },
-  description: "A fast, modern client for Firefly III with automatic currency conversion.",
+  title: { default: "Wallet", template: "%s · Wallet" },
+  description: "A fast, modern personal finance and net-worth tracker with automatic currency intelligence.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "FireFly", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Wallet", statusBarStyle: "default" },
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 

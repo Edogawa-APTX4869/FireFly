@@ -54,7 +54,7 @@ export function SpeedDialFab() {
         />
       )}
 
-      <div className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-2 md:right-8 md:bottom-8">
+      <div className="fixed right-3.5 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 md:right-8 md:bottom-8">
         {open && (
           <div className="flex flex-col items-end gap-2 fade-in">
             {templates.map((t) => {

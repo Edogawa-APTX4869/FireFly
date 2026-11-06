@@ -128,7 +128,7 @@ export function AccountsClient() {
           <span className="text-xs font-medium text-muted">Active totals:</span>
           {totalsByCurrency.map((t) => (
             <Badge key={t.code} tone="primary" className="px-2.5 py-1 text-xs">
-              <Money amount={t.sum.toString()} code={t.code} decimals={t.decimals} symbol={t.symbol} />
+              <Money animated amount={t.sum.toString()} code={t.code} decimals={t.decimals} symbol={t.symbol} />
             </Badge>
           ))}
         </div>

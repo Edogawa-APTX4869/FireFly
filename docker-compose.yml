@@ -9,12 +9,12 @@ version: "3.8"
 # ============================================================================
 
 services:
-  firefly-web:
+  wallet:
     build:
       context: ./firefly-web
       dockerfile: Dockerfile
-    image: firefly-web:latest
-    container_name: firefly_web
+    image: ghcr.io/edogawa-aptx4869/wallet:latest
+    container_name: wallet
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -34,7 +34,7 @@ services:
       - ASSISTANT_LLM_MODEL=${ASSISTANT_LLM_MODEL:-gpt-4o-mini}
       - ASSISTANT_LLM_API_KEY=${ASSISTANT_LLM_API_KEY:-}
     volumes:
-      - firefly_web_data:/app/data
+      - wallet_data:/app/data
     depends_on:
       - firefly-app
     networks:
@@ -88,7 +88,7 @@ services:
       - firefly_net
 
 volumes:
-  firefly_web_data:
+  wallet_data:
   firefly_iii_upload:
   firefly_iii_db:
 

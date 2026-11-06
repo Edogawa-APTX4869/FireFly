@@ -20,6 +20,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
+  Check,
   ChevronRight,
   Columns2,
   CreditCard,
@@ -51,7 +52,7 @@ import {
 } from "@/lib/dashboard-cards";
 import { ExtraCard, inPeriod, type ExtraCardContext } from "./dashboard-extra-cards";
 import { useAccounts, usePrimaryCurrency, useRatesToPrimary } from "@/lib/hooks";
-import { cn, formatMoney, isoDate, monthRange, sumDecimal } from "@/lib/utils";
+import { cn, isoDate, monthRange, sumDecimal } from "@/lib/utils";
 import {
   COLOR_PALETTE,
   inferAccountDefaultStyle,
@@ -60,6 +61,8 @@ import {
 } from "@/components/resource-icon";
 import { TransactionRow } from "@/components/transaction-row";
 import {
+  AnimatedMoney,
+  AnimatedNumber,
   Badge,
   Button,
   Card,
@@ -540,6 +543,7 @@ export function DashboardClient() {
               code={primaryCode}
               decimals={primaryDecimals}
               symbol={primary?.symbol}
+              animated
             />
           </p>
         </div>
@@ -597,13 +601,13 @@ export function DashboardClient() {
           </div>
 
           {accountsQ.isLoading ? (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               <Skeleton className="h-16" />
               <Skeleton className="h-16" />
               <Skeleton className="h-16" />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {walletAccounts.map((acc, idx) => {
                 const isSelected = selectedIdSet.has(acc.id);
                 const customMeta = meta.get("account", acc.id);
@@ -621,20 +625,27 @@ export function DashboardClient() {
                       isSelected
                         ? {
                             borderColor: bg,
-                            borderLeftWidth: "5px",
+                            borderLeftWidth: "4px",
                             backgroundColor: `${bg}14`,
                           }
                         : undefined
                     }
                     className={cn(
-                      "group relative flex cursor-pointer flex-col justify-between gap-2 rounded-xl border p-2.5 transition-all duration-200 ease-out select-none min-w-0 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99]",
+                      "group relative flex cursor-pointer flex-col justify-between gap-1.5 rounded-xl border p-2 sm:p-2.5 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none min-w-0 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.97]",
                       isSelected
-                        ? "shadow-xs"
+                        ? "shadow-xs ring-1 ring-primary/25"
                         : "border-border bg-surface opacity-55 grayscale-[30%] hover:opacity-90",
                     )}
                   >
+                    {/* Animated Selected Check Badge */}
+                    {isSelected && (
+                      <span className="animate-pop-in absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-white shadow-xs">
+                        <Check className="size-2.5 stroke-[3]" />
+                      </span>
+                    )}
+
                     {/* Top Row: Editable Category-Aware Icon + Account Name + Register Link */}
-                    <div className="flex items-center justify-between gap-1.5 min-w-0">
+                    <div className="flex items-center justify-between gap-1 min-w-0">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <ResourceIconBadge
                           entityType="account"
@@ -643,7 +654,7 @@ export function DashboardClient() {
                           defaultColor={bg}
                           size="sm"
                         />
-                        <p className="truncate text-xs font-semibold text-fg" title={acc.attributes.name}>
+                        <p className="truncate text-[11px] sm:text-xs font-semibold text-fg" title={acc.attributes.name}>
                           {acc.attributes.name}
                         </p>
                       </div>
@@ -652,15 +663,15 @@ export function DashboardClient() {
                         onClick={(e) => e.stopPropagation()}
                         title={`Open ${acc.attributes.name} transactions`}
                         aria-label={`Open ${acc.attributes.name} transactions`}
-                        className="flex size-5 shrink-0 items-center justify-center rounded-md border border-border bg-surface/80 text-muted hover:border-primary hover:text-primary"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-md border border-border bg-surface/80 text-muted hover:border-primary hover:text-primary active:scale-90 transition-transform"
                       >
                         <ArrowUpRight className="size-3" />
                       </Link>
                     </div>
 
-                    {/* Bottom Row: 100% Full-Width Unclipped Balance */}
-                    <div className="overflow-hidden">
-                      <p className="tabular font-mono text-xs font-bold tracking-tight text-fg sm:text-sm whitespace-nowrap">
+                    {/* Bottom Row: Fully Responsive Unclipped Balance */}
+                    <div className="min-w-0 overflow-hidden">
+                      <p className="tabular font-mono text-[11px] sm:text-xs md:text-sm font-bold tracking-tight text-fg truncate">
                         <Money
                           amount={acc.attributes.current_balance ?? 0}
                           code={acc.attributes.currency_code}
@@ -675,10 +686,10 @@ export function DashboardClient() {
 
               <Link
                 href="/accounts"
-                className="flex min-h-16 items-center justify-center gap-2 rounded-xl border border-dashed border-primary/50 px-3 py-2.5 text-xs font-semibold text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-soft/40 active:translate-y-0"
+                className="flex min-h-16 items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/50 px-2 py-2 text-[11px] sm:text-xs font-semibold text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-soft/40 active:translate-y-0 active:scale-[0.98]"
               >
                 <span>Manage accounts</span>
-                <Plus className="size-4" aria-hidden />
+                <Plus className="size-3.5" aria-hidden />
               </Link>
             </div>
           )}
@@ -752,7 +763,7 @@ export function DashboardClient() {
       )}
 
       {/* Horizontal Quick-Action Pills (Planned payments, Debts, Budgets, Piggy Banks, Rules) */}
-      <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar">
+      <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
         <Link
           href="/rules?tab=recurrences"
           className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs hover:bg-surface-2"
@@ -1176,11 +1187,23 @@ function DashboardCardShell({
 function SpeedometerGauge({
   label,
   valueText,
+  numericValue,
+  code,
+  decimals,
+  symbol,
+  suffix,
+  signed,
   ratio,
   size = "lg",
 }: {
   label: string;
-  valueText: string;
+  valueText?: string;
+  numericValue?: number;
+  code?: string | null;
+  decimals?: number | null;
+  symbol?: string | null;
+  suffix?: string;
+  signed?: boolean;
   /** -1 (far left red) .. 0 (top middle) .. +1 (far right green) */
   ratio: number;
   size?: "lg" | "sm";
@@ -1188,11 +1211,16 @@ function SpeedometerGauge({
   const clamped = Math.max(-1, Math.min(1, ratio));
   // Angle in degrees from -120deg (left red) to +120deg (right green)
   const angle = clamped * 115;
-  const dim = size === "lg" ? 136 : 86;
 
   return (
-    <div className="flex flex-col items-center">
-      <svg width={dim} height={dim * 0.78} viewBox="0 0 120 94" className="overflow-visible">
+    <div className="flex flex-col items-center min-w-0">
+      <svg
+        viewBox="0 0 120 94"
+        className={cn(
+          "overflow-visible h-auto",
+          size === "lg" ? "w-full max-w-[115px] sm:max-w-[136px]" : "w-full max-w-[70px] sm:max-w-[86px]",
+        )}
+      >
         {/* Left Red Arc */}
         <path
           d="M 22 76 A 44 44 0 0 1 38 22"
@@ -1217,14 +1245,42 @@ function SpeedometerGauge({
           strokeWidth="9"
           strokeLinecap="round"
         />
-        {/* Needle */}
-        <g transform={`translate(60, 56) rotate(${angle})`}>
+        {/* Needle with dynamic spring response */}
+        <g
+          className="gauge-needle"
+          style={{
+            transform: `translate(60px, 56px) rotate(${angle}deg)`,
+          }}
+        >
           <polygon points="-3.5,10 3.5,10 0,-36" fill="currentColor" className="text-fg" />
           <circle cx="0" cy="0" r="7" fill="currentColor" className="text-fg" />
         </g>
       </svg>
-      <span className="mt-0.5 text-[10px] font-semibold tracking-wider text-muted uppercase">{label}</span>
-      <span className={cn("tabular font-bold", size === "lg" ? "text-xl" : "text-sm")}>{valueText}</span>
+      <span className="mt-0.5 text-[10px] font-semibold tracking-wider text-muted uppercase truncate max-w-full">
+        {label}
+      </span>
+      <span
+        className={cn(
+          "tabular font-bold truncate max-w-full text-center px-0.5",
+          size === "lg" ? "text-sm sm:text-xl" : "text-xs sm:text-sm",
+        )}
+      >
+        {numericValue !== undefined ? (
+          code !== undefined ? (
+            <AnimatedMoney
+              amount={numericValue}
+              code={code}
+              decimals={decimals}
+              symbol={symbol}
+              signed={signed}
+            />
+          ) : (
+            <AnimatedNumber value={numericValue} suffix={suffix} decimals={decimals ?? 0} />
+          )
+        ) : (
+          valueText
+        )}
+      </span>
     </div>
   );
 }
@@ -1268,45 +1324,60 @@ function WalletGaugesCard({
       </div>
 
       {/* 2 Large Primary Gauges: BALANCE & CASH FLOW */}
-      <div className="grid grid-cols-2 gap-4 pt-1">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 pt-1">
         <SpeedometerGauge
           size="lg"
           label="Balance"
-          valueText={formatMoney(balance.toString(), primaryCode, primaryDecimals, primarySymbol)}
+          numericValue={balance.toNumber()}
+          code={primaryCode}
+          decimals={primaryDecimals}
+          symbol={primarySymbol}
           ratio={balance.gt(0) ? 0.85 : -0.8}
         />
         <SpeedometerGauge
           size="lg"
           label="Cash Flow"
-          valueText={formatMoney(cashflow.toString(), primaryCode, primaryDecimals, primarySymbol, { signed: true })}
+          numericValue={cashflow.toNumber()}
+          code={primaryCode}
+          decimals={primaryDecimals}
+          symbol={primarySymbol}
+          signed
           ratio={cashflowRatio}
         />
       </div>
 
       {/* 4 Mini Secondary Gauges: OUTLOOK, SPENDING, CREDIT, DEBT */}
-      <div className="grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 border-t border-border pt-3 sm:grid-cols-4">
         <SpeedometerGauge
           size="sm"
           label="Outlook (7d)"
-          valueText={formatMoney(outlook.toString(), primaryCode, primaryDecimals, primarySymbol)}
+          numericValue={outlook.toNumber()}
+          code={primaryCode}
+          decimals={primaryDecimals}
+          symbol={primarySymbol}
           ratio={outlook.gte(0) ? 0.7 : -0.35}
         />
         <SpeedometerGauge
           size="sm"
           label="Spending"
-          valueText={formatMoney(spending.toString(), primaryCode, primaryDecimals, primarySymbol)}
+          numericValue={spending.toNumber()}
+          code={primaryCode}
+          decimals={primaryDecimals}
+          symbol={primarySymbol}
           ratio={spendingRatio}
         />
         <SpeedometerGauge
           size="sm"
           label="Credit"
-          valueText={`${creditPct}%`}
+          numericValue={creditPct}
+          suffix="%"
           ratio={creditPct === 0 ? 0.85 : 0.85 - (creditPct / 100) * 1.7}
         />
         <SpeedometerGauge
           size="sm"
           label="Debt"
-          valueText={`${debtPct}%`}
+          numericValue={debtPct}
+          suffix="%"
           ratio={debtPct === 0 ? 0.85 : 0.85 - (debtPct / 100) * 1.7}
         />
       </div>
@@ -1391,35 +1462,39 @@ function CashFlowTableCard({
           </thead>
           <tbody className="divide-y divide-border tabular">
             <tr className="bg-surface-2/60">
-              <td className="px-2 py-1.5 font-medium">Count</td>
-              <td className="px-2 py-1.5 text-right">{metrics.incomeCount}</td>
-              <td className="px-2 py-1.5 text-right text-danger">{metrics.expenseCount}</td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 font-medium">Count</td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right">
+                <AnimatedNumber value={metrics.incomeCount} />
+              </td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right text-danger">
+                <AnimatedNumber value={metrics.expenseCount} />
+              </td>
             </tr>
             <tr>
-              <td className="px-2 py-1.5 font-medium">Average (Day)</td>
-              <td className="px-2 py-1.5 text-right">
-                <Money amount={metrics.avgIncomeDay.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 font-medium">Average (Day)</td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right">
+                <Money animated amount={metrics.avgIncomeDay.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
-              <td className="px-2 py-1.5 text-right text-danger">
-                -<Money amount={metrics.avgExpenseDay.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right text-danger">
+                -<Money animated amount={metrics.avgExpenseDay.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
             </tr>
             <tr className="bg-surface-2/60">
-              <td className="px-2 py-1.5 font-medium">Average (Record)</td>
-              <td className="px-2 py-1.5 text-right">
-                <Money amount={metrics.avgIncomeRec.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 font-medium">Average (Record)</td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right">
+                <Money animated amount={metrics.avgIncomeRec.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
-              <td className="px-2 py-1.5 text-right text-danger">
-                -<Money amount={metrics.avgExpenseRec.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right text-danger">
+                -<Money animated amount={metrics.avgExpenseRec.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
             </tr>
             <tr>
-              <td className="px-2 py-1.5 font-semibold">Total</td>
-              <td className="px-2 py-1.5 text-right font-semibold">
-                <Money amount={metrics.incomeSum.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 font-semibold">Total</td>
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right font-semibold">
+                <Money animated amount={metrics.incomeSum.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
-              <td className="px-2 py-1.5 text-right font-semibold text-danger">
-                -<Money amount={metrics.expenseSum.toString()} code={primaryCode} decimals={primaryDecimals} />
+              <td className="px-1.5 py-1 sm:px-2 sm:py-1.5 text-right font-semibold text-danger">
+                -<Money animated amount={metrics.expenseSum.toString()} code={primaryCode} decimals={primaryDecimals} />
               </td>
             </tr>
           </tbody>
@@ -1429,7 +1504,7 @@ function CashFlowTableCard({
       <div className="flex items-baseline justify-end gap-3 border-t border-border pt-2.5 text-sm">
         <span className="text-xs text-muted">Cash flow</span>
         <span className={cn("text-base font-bold", metrics.netCashflow.lt(0) ? "text-danger" : "text-fg")}>
-          <Money amount={metrics.netCashflow.toString()} code={primaryCode} decimals={primaryDecimals} />
+          <Money animated amount={metrics.netCashflow.toString()} code={primaryCode} decimals={primaryDecimals} />
         </span>
       </div>
 
@@ -1475,8 +1550,8 @@ function ChartsCard({
                   fontSize: "0.875rem",
                 }}
               />
-              <Bar dataKey="Income" fill="var(--success)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="Expense" fill="var(--danger)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="Income" fill="var(--success)" radius={[6, 6, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+              <Bar dataKey="Expense" fill="var(--danger)" radius={[6, 6, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1509,7 +1584,7 @@ function ChartsCard({
                     fontSize: "0.875rem",
                   }}
                 />
-                <Area type="monotone" dataKey="Balance" stroke="var(--primary)" strokeWidth={2} fill="url(#balFill)" />
+                <Area type="monotone" dataKey="Balance" stroke="var(--primary)" strokeWidth={2} fill="url(#balFill)" isAnimationActive animationDuration={900} animationEasing="ease-out" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

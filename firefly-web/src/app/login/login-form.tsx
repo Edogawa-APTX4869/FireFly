@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Flame } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { Button, ErrorBox, Field, Input } from "@/components/ui";
 
 export function LoginForm({ defaultUrl = "" }: { defaultUrl?: string }) {
@@ -38,9 +38,9 @@ export function LoginForm({ defaultUrl = "" }: { defaultUrl?: string }) {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-fg shadow-lg">
-            <Flame className="size-7" aria-hidden />
+            <Wallet className="size-7" aria-hidden />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Connect to Firefly III</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Connect to Wallet</h1>
           <p className="text-sm text-muted">Your token is kept encrypted on the server and never stored in the browser.</p>
         </div>
         <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">

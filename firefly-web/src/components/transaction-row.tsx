@@ -80,11 +80,11 @@ export function TransactionRow({
   const Icon = (iconName && ICON_CATALOG[iconName]) || DefaultIcon;
 
   return (
-    <li className="group flex items-center gap-3 py-3">
+    <li className="group flex items-center gap-2 sm:gap-3 py-2.5 sm:py-3 min-w-0">
       <span
         style={iconColor ? { backgroundColor: `${iconColor}22`, color: iconColor } : undefined}
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-xl",
+          "flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl",
           !iconColor && first.type === "withdrawal" && "bg-danger-soft text-danger",
           !iconColor && first.type === "deposit" && "bg-success-soft text-success",
           !iconColor && first.type !== "withdrawal" && first.type !== "deposit" && "bg-primary-soft text-primary",
@@ -93,11 +93,11 @@ export function TransactionRow({
         <Icon className="size-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">
+        <p className="truncate text-xs sm:text-sm font-medium">
           {isSplit ? group.attributes.group_title || first.description : first.description}
-          {isSplit && <Badge className="ml-2">{splits.length} splits</Badge>}
+          {isSplit && <Badge className="ml-1.5 text-[10px] sm:text-xs">{splits.length} splits</Badge>}
         </p>
-        <p className="truncate text-xs text-muted">
+        <p className="truncate text-[11px] sm:text-xs text-muted">
           <Link href={`/accounts/${first.source_id}`} className="hover:underline">
             {first.source_name}
           </Link>
@@ -120,12 +120,12 @@ export function TransactionRow({
           {formatDate(first.date)}
         </p>
       </div>
-      <div className="text-right">
-        <p className={cn("text-sm font-semibold", sign > 0 && "text-success", sign < 0 && "text-fg")}>
+      <div className="text-right shrink-0">
+        <p className={cn("text-xs sm:text-sm font-semibold tabular", sign > 0 && "text-success", sign < 0 && "text-fg")}>
           <Money amount={sign * shownAmount || shownAmount} code={shownCode} decimals={shownDecimals} signed={sign !== 0} />
         </p>
         {secondaryAmount && secondaryCode && !isSplit && (
-          <p className="text-xs text-muted">
+          <p className="text-[10px] sm:text-xs text-muted tabular">
             <Money amount={Math.abs(Number(secondaryAmount))} code={secondaryCode} decimals={secondaryDecimals} />
           </p>
         )}
@@ -136,30 +136,30 @@ export function TransactionRow({
           <button
             type="button"
             onClick={() => onEdit(group)}
-            className="rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+            className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform"
             title="Edit transaction"
             aria-label={`Edit ${first.description}`}
           >
-            <Pencil className="size-4" />
+            <Pencil className="size-3.5 sm:size-4" />
           </button>
         )}
         <Link
           href={buildDuplicateHref(first)}
-          className="rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+          className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform"
           title="Duplicate transaction"
           aria-label={`Duplicate ${first.description}`}
         >
-          <Copy className="size-4" />
+          <Copy className="size-3.5 sm:size-4" />
         </Link>
         {onDelete && (
           <button
             type="button"
             onClick={() => onDelete(group.id)}
-            className="rounded-lg p-1.5 text-muted hover:bg-danger-soft hover:text-danger"
+            className="rounded-lg p-1 text-muted hover:bg-danger-soft hover:text-danger active:scale-95 transition-transform"
             title="Delete transaction"
             aria-label={`Delete ${first.description}`}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-3.5 sm:size-4" />
           </button>
         )}
       </div>

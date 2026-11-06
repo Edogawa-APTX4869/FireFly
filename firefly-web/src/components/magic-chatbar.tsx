@@ -1109,7 +1109,7 @@ export function MagicChatbar() {
 
   if (minimized) {
     return (
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-4 z-40 md:bottom-6 md:left-72">
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3.5 z-40 md:bottom-6 md:left-72">
         <button
           type="button"
           onClick={() => {
@@ -1128,7 +1128,7 @@ export function MagicChatbar() {
   }
 
   return (
-    <div className="sheet-up fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 mx-auto max-w-2xl md:right-24 md:bottom-5 md:left-72">
+    <div className="sheet-up fixed inset-x-2.5 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-2xl md:right-24 md:bottom-5 md:left-72">
       <div className="relative">
         <button
           type="button"

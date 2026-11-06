@@ -79,13 +79,22 @@ function groupExpenses(
   return [...map.values()].sort((a, b) => b.total.cmp(a.total));
 }
 
-function PrimaryMoney({ ctx, value }: { ctx: ExtraCardContext; value: Decimal | number }) {
+function PrimaryMoney({
+  ctx,
+  value,
+  animated = false,
+}: {
+  ctx: ExtraCardContext;
+  value: Decimal | number;
+  animated?: boolean;
+}) {
   return (
     <Money
       amount={new Decimal(value).toFixed(ctx.primaryDecimals)}
       code={ctx.primaryCode}
       decimals={ctx.primaryDecimals}
       symbol={ctx.primarySymbol}
+      animated={animated}
     />
   );
 }
@@ -272,10 +281,10 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
       return (
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
           {stats.map((s) => (
-            <div key={s.label} className="rounded-xl border border-border/60 bg-surface-2 p-3">
-              <p className="text-[11px] font-semibold tracking-wide text-muted uppercase">{s.label}</p>
-              <p className={`tabular mt-1 text-base font-bold ${s.tone}`}>
-                <PrimaryMoney ctx={ctx} value={s.value} />
+            <div key={s.label} className="rounded-xl border border-border/60 bg-surface-2 p-2.5 sm:p-3 min-w-0">
+              <p className="text-[10px] sm:text-[11px] font-semibold tracking-wide text-muted uppercase truncate">{s.label}</p>
+              <p className={`tabular mt-1 text-sm sm:text-base font-bold truncate ${s.tone}`}>
+                <PrimaryMoney ctx={ctx} value={s.value} animated />
               </p>
             </div>
           ))}
@@ -325,7 +334,7 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
                   fontSize: "0.875rem",
                 }}
               />
-              <Area type="monotone" dataKey="Balance" stroke="var(--primary)" strokeWidth={2} fill="var(--primary-soft)" />
+              <Area type="monotone" dataKey="Balance" stroke="var(--primary)" strokeWidth={2} fill="var(--primary-soft)" isAnimationActive animationDuration={900} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -347,8 +356,8 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
                   fontSize: "0.875rem",
                 }}
               />
-              <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Expense" fill="var(--danger)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Income" fill="var(--success)" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+              <Bar dataKey="Expense" fill="var(--danger)" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -529,23 +538,23 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
       return (
         <div className="flex flex-col gap-4">
           {/* Global Debt KPI Summary Row */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl border border-success/30 bg-success-soft/30 p-2.5">
-              <p className="text-xs text-muted">Paid so far</p>
-              <p className="tabular mt-0.5 font-mono text-xs font-bold text-success sm:text-sm">
-                <PrimaryMoney ctx={ctx} value={totalPaidPrimary} />
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div className="rounded-xl border border-success/30 bg-success-soft/30 p-2 sm:p-2.5 min-w-0">
+              <p className="text-[10px] sm:text-xs text-muted truncate">Paid so far</p>
+              <p className="tabular mt-0.5 font-mono text-[11px] sm:text-sm font-bold text-success truncate">
+                <PrimaryMoney ctx={ctx} value={totalPaidPrimary} animated />
               </p>
             </div>
-            <div className="rounded-xl border border-danger/30 bg-danger-soft/30 p-2.5">
-              <p className="text-xs text-muted">Remaining</p>
-              <p className="tabular mt-0.5 font-mono text-xs font-bold text-danger sm:text-sm">
-                <PrimaryMoney ctx={ctx} value={totalRemainingPrimary} />
+            <div className="rounded-xl border border-danger/30 bg-danger-soft/30 p-2 sm:p-2.5 min-w-0">
+              <p className="text-[10px] sm:text-xs text-muted truncate">Remaining</p>
+              <p className="tabular mt-0.5 font-mono text-[11px] sm:text-sm font-bold text-danger truncate">
+                <PrimaryMoney ctx={ctx} value={totalRemainingPrimary} animated />
               </p>
             </div>
-            <div className="rounded-xl border border-warning/30 bg-warning-soft/30 p-2.5">
-              <p className="text-xs text-muted">Expected / inst.</p>
-              <p className="tabular mt-0.5 font-mono text-xs font-bold text-warning sm:text-sm">
-                <PrimaryMoney ctx={ctx} value={totalExpectedPrimary} />
+            <div className="rounded-xl border border-warning/30 bg-warning-soft/30 p-2 sm:p-2.5 min-w-0">
+              <p className="text-[10px] sm:text-xs text-muted truncate">Expected / inst.</p>
+              <p className="tabular mt-0.5 font-mono text-[11px] sm:text-sm font-bold text-warning truncate">
+                <PrimaryMoney ctx={ctx} value={totalExpectedPrimary} animated />
               </p>
             </div>
           </div>
@@ -570,8 +579,8 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
                     fontSize: "12px",
                   }}
                 />
-                <Bar dataKey="paidPrimary" name={`Paid (${ctx.primaryCode})`} stackId="debt" fill="var(--success)" radius={[4, 0, 0, 4]} />
-                <Bar dataKey="remainingPrimary" name={`Remaining (${ctx.primaryCode})`} stackId="debt" fill="var(--danger)" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="paidPrimary" name={`Paid (${ctx.primaryCode})`} stackId="debt" fill="var(--success)" radius={[4, 0, 0, 4]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
+                <Bar dataKey="remainingPrimary" name={`Remaining (${ctx.primaryCode})`} stackId="debt" fill="var(--danger)" radius={[0, 4, 4, 0]} isAnimationActive animationDuration={800} animationEasing="ease-out" />
               </BarChart>
             </ResponsiveContainer>
           </div>
