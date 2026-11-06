@@ -52,7 +52,7 @@ import {
 } from "@/lib/dashboard-cards";
 import { ExtraCard, inPeriod, type ExtraCardContext } from "./dashboard-extra-cards";
 import { useAccounts, usePrimaryCurrency, useRatesToPrimary } from "@/lib/hooks";
-import { cn, isoDate, monthRange, sumDecimal } from "@/lib/utils";
+import { cn, formatMoney, isoDate, monthRange, sumDecimal } from "@/lib/utils";
 import {
   COLOR_PALETTE,
   inferAccountDefaultStyle,
@@ -1181,105 +1181,71 @@ function DashboardCardShell({
 }
 
 // ============================================================================
-// 1. WALLET DASHBOARD GAUGES CARD
+// 1. MODERN FINANCIAL HEALTH METRIC CARDS & RADIAL METERS (No needles)
 // ============================================================================
 
-function SpeedometerGauge({
+function RadialArcMeter({
+  value,
   label,
-  valueText,
-  numericValue,
-  code,
-  decimals,
-  symbol,
-  suffix,
-  signed,
-  ratio,
-  size = "lg",
+  pct,
+  tone = "primary",
+  size = "md",
 }: {
+  value: React.ReactNode;
   label: string;
-  valueText?: string;
-  numericValue?: number;
-  code?: string | null;
-  decimals?: number | null;
-  symbol?: string | null;
-  suffix?: string;
-  signed?: boolean;
-  /** -1 (far left red) .. 0 (top middle) .. +1 (far right green) */
-  ratio: number;
-  size?: "lg" | "sm";
+  pct: number;
+  tone?: "primary" | "success" | "danger" | "warning";
+  size?: "lg" | "md";
 }) {
-  const clamped = Math.max(-1, Math.min(1, ratio));
-  // Angle in degrees from -120deg (left red) to +120deg (right green)
-  const angle = clamped * 115;
+  const clampedPct = Math.max(0, Math.min(100, pct));
+  const ratio = clampedPct / 100;
+  // Semicircle arc: radius 40, center (50, 48)
+  // Arc length = PI * 40 ≈ 125.66
+  const arcLength = 125.66;
+  const strokeOffset = arcLength * (1 - ratio);
+
+  const strokeColors = {
+    primary: "var(--primary)",
+    success: "var(--success)",
+    danger: "var(--danger)",
+    warning: "var(--warning)",
+  };
 
   return (
-    <div className="flex flex-col items-center min-w-0">
-      <svg
-        viewBox="0 0 120 94"
-        className={cn(
-          "overflow-visible h-auto",
-          size === "lg" ? "w-full max-w-[115px] sm:max-w-[136px]" : "w-full max-w-[70px] sm:max-w-[86px]",
-        )}
-      >
-        {/* Left Red Arc */}
-        <path
-          d="M 22 76 A 44 44 0 0 1 38 22"
-          fill="none"
-          stroke="var(--danger)"
-          strokeWidth="9"
-          strokeLinecap="round"
-        />
-        {/* Top Orange Arc */}
-        <path
-          d="M 41 20 A 44 44 0 0 1 79 20"
-          fill="none"
-          stroke="var(--warning)"
-          strokeWidth="9"
-          strokeLinecap="round"
-        />
-        {/* Right Green Arc */}
-        <path
-          d="M 82 22 A 44 44 0 0 1 98 76"
-          fill="none"
-          stroke="var(--success)"
-          strokeWidth="9"
-          strokeLinecap="round"
-        />
-        {/* Needle with dynamic spring response */}
-        <g
-          className="gauge-needle"
-          style={{
-            transform: `translate(60px, 56px) rotate(${angle}deg)`,
-          }}
-        >
-          <polygon points="-3.5,10 3.5,10 0,-36" fill="currentColor" className="text-fg" />
-          <circle cx="0" cy="0" r="7" fill="currentColor" className="text-fg" />
-        </g>
-      </svg>
-      <span className="mt-0.5 text-[10px] font-semibold tracking-wider text-muted uppercase truncate max-w-full">
+    <div className="flex flex-col items-center justify-center text-center min-w-0">
+      <div className={cn("relative flex items-center justify-center", size === "lg" ? "w-28 h-18 sm:w-32 sm:h-20" : "w-20 h-14 sm:w-24 sm:h-16")}>
+        <svg viewBox="0 0 100 56" className="w-full h-full overflow-visible">
+          {/* Background Track */}
+          <path
+            d="M 10 48 A 40 40 0 0 1 90 48"
+            fill="none"
+            stroke="var(--border)"
+            strokeWidth="9"
+            strokeLinecap="round"
+          />
+          {/* Active Animated Progress Arc */}
+          <path
+            d="M 10 48 A 40 40 0 0 1 90 48"
+            fill="none"
+            stroke={strokeColors[tone]}
+            strokeWidth="9"
+            strokeLinecap="round"
+            strokeDasharray={arcLength}
+            strokeDashoffset={strokeOffset}
+            style={{
+              transition: "stroke-dashoffset 800ms cubic-bezier(0.16, 1, 0.3, 1), stroke 300ms ease",
+            }}
+          />
+        </svg>
+        {/* Value Inside Arc */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end">
+          <span className={cn("tabular font-bold tracking-tight text-fg truncate max-w-full px-1", size === "lg" ? "text-sm sm:text-base" : "text-xs")}>
+            {value}
+          </span>
+        </div>
+      </div>
+      <span className="mt-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-muted truncate max-w-full">
         {label}
-      </span>
-      <span
-        className={cn(
-          "tabular font-bold truncate max-w-full text-center px-0.5",
-          size === "lg" ? "text-sm sm:text-xl" : "text-xs sm:text-sm",
-        )}
-      >
-        {numericValue !== undefined ? (
-          code !== undefined ? (
-            <AnimatedMoney
-              amount={numericValue}
-              code={code}
-              decimals={decimals}
-              symbol={symbol}
-              signed={signed}
-            />
-          ) : (
-            <AnimatedNumber value={numericValue} suffix={suffix} decimals={decimals ?? 0} />
-          )
-        ) : (
-          valueText
-        )}
       </span>
     </div>
   );
@@ -1308,84 +1274,195 @@ function WalletGaugesCard({
   creditPct: number;
   debtPct: number;
 }) {
-  const cashflowRatio = income.gt(0)
-    ? cashflow.div(income).toNumber()
+  const spendingAmt = spending.abs();
+  const savingsPct = income.gt(0)
+    ? Math.round(cashflow.div(income).mul(100).toNumber())
     : cashflow.gte(0)
-      ? 0.6
-      : -0.6;
+      ? 100
+      : -100;
   const spendingRatio = income.gt(0)
-    ? Math.max(-1, Math.min(1, 0.5 - spending.abs().div(income).toNumber()))
-    : -0.2;
+    ? Math.min(100, Math.round(spendingAmt.div(income).mul(100).toNumber()))
+    : spendingAmt.gt(0)
+      ? 100
+      : 0;
+
+  // Proportional breakdown widths
+  const totalFlow = Decimal.max(income, spendingAmt).toNumber() || 1;
+  const incomeBarWidth = Math.min(100, Math.max(8, Math.round((income.toNumber() / totalFlow) * 100)));
+  const spendingBarWidth = Math.min(100, Math.max(8, Math.round((spendingAmt.toNumber() / totalFlow) * 100)));
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg bg-surface-2 py-1 text-center text-xs text-muted">
-        Showing all amounts in base currency ({primaryCode} · {primaryDecimals} decimals).
+      {/* 2 Primary Modern KPI Cards: BALANCE & NET CASH FLOW */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Liquid Balance Card */}
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface-2/40 p-3.5 sm:p-4">
+          <div className="flex min-w-0 flex-col">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+              Liquid Balance
+            </span>
+            <span className="tabular mt-1 text-xl sm:text-2xl font-bold tracking-tight text-fg truncate">
+              <AnimatedMoney
+                amount={balance.toNumber()}
+                code={primaryCode}
+                decimals={primaryDecimals}
+                symbol={primarySymbol}
+              />
+            </span>
+            <span className="mt-1 text-[11px] text-muted truncate">
+              Selected accounts total
+            </span>
+          </div>
+          <div className="shrink-0">
+            <RadialArcMeter
+              size="lg"
+              pct={balance.gt(0) ? 85 : 15}
+              tone={balance.gt(0) ? "success" : "danger"}
+              value={balance.gt(0) ? "Active" : "Low"}
+              label="Asset Pool"
+            />
+          </div>
+        </div>
+
+        {/* Net Cash Flow Card */}
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface-2/40 p-3.5 sm:p-4">
+          <div className="flex min-w-0 flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                Net Cash Flow
+              </span>
+              <Badge tone={cashflow.gte(0) ? "success" : "danger"} className="text-[10px]">
+                {cashflow.gte(0) ? `+${savingsPct}% saved` : `${savingsPct}% deficit`}
+              </Badge>
+            </div>
+            <span className={cn("tabular mt-1 text-xl sm:text-2xl font-bold tracking-tight truncate", cashflow.gte(0) ? "text-success" : "text-danger")}>
+              <AnimatedMoney
+                amount={cashflow.toNumber()}
+                code={primaryCode}
+                decimals={primaryDecimals}
+                symbol={primarySymbol}
+                signed
+              />
+            </span>
+            <span className="mt-1 text-[11px] text-muted truncate">
+              Income minus expenses (30d)
+            </span>
+          </div>
+          <div className="shrink-0">
+            <RadialArcMeter
+              size="lg"
+              pct={Math.max(0, Math.min(100, savingsPct))}
+              tone={cashflow.gte(0) ? "success" : "danger"}
+              value={cashflow.gte(0) ? `+${savingsPct}%` : `${savingsPct}%`}
+              label="Savings Rate"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* 2 Large Primary Gauges: BALANCE & CASH FLOW */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4 pt-1">
-        <SpeedometerGauge
-          size="lg"
-          label="Balance"
-          numericValue={balance.toNumber()}
-          code={primaryCode}
-          decimals={primaryDecimals}
-          symbol={primarySymbol}
-          ratio={balance.gt(0) ? 0.85 : -0.8}
-        />
-        <SpeedometerGauge
-          size="lg"
-          label="Cash Flow"
-          numericValue={cashflow.toNumber()}
-          code={primaryCode}
-          decimals={primaryDecimals}
-          symbol={primarySymbol}
-          signed
-          ratio={cashflowRatio}
-        />
+      {/* Cash Flow Visual Proportional Bar */}
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-fg">Monthly Income vs Spending</span>
+          <span className="text-muted">Ratio: {spendingRatio}% spent</span>
+        </div>
+
+        {/* Dual Proportional Track */}
+        <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-2 gap-1 p-0.5">
+          <div
+            className="h-full rounded-full bg-success transition-all duration-700 ease-out"
+            style={{ width: `${incomeBarWidth}%` }}
+            title={`Income: ${formatMoney(income.toString(), primaryCode, primaryDecimals, primarySymbol)}`}
+          />
+          <div
+            className="h-full rounded-full bg-danger transition-all duration-700 ease-out"
+            style={{ width: `${spendingBarWidth}%` }}
+            title={`Spending: ${formatMoney(spendingAmt.toString(), primaryCode, primaryDecimals, primarySymbol)}`}
+          />
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
+          <div className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-success" />
+            <span className="text-muted">Earned:</span>
+            <span className="font-semibold text-fg">
+              <Money amount={income.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} />
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-danger" />
+            <span className="text-muted">Spent:</span>
+            <span className="font-semibold text-fg">
+              <Money amount={spendingAmt.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} />
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-primary" />
+            <span className="text-muted">Net:</span>
+            <span className={cn("font-semibold", cashflow.gte(0) ? "text-success" : "text-danger")}>
+              <Money amount={cashflow.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} signed />
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* 4 Mini Secondary Gauges: OUTLOOK, SPENDING, CREDIT, DEBT */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 border-t border-border pt-3 sm:grid-cols-4">
-        <SpeedometerGauge
-          size="sm"
+      {/* 4 Modern Radial Metric Gauges (Outlook, Spending, Credit, Debt) */}
+      <div className="grid grid-cols-2 gap-2.5 rounded-xl border border-border/80 bg-surface-2/20 p-3 sm:grid-cols-4">
+        {/* Outlook */}
+        <RadialArcMeter
+          pct={outlook.gte(0) ? 80 : 35}
+          tone={outlook.gte(0) ? "success" : "warning"}
+          value={
+            <AnimatedMoney
+              amount={outlook.toNumber()}
+              code={primaryCode}
+              decimals={primaryDecimals}
+              symbol={primarySymbol}
+            />
+          }
           label="Outlook (7d)"
-          numericValue={outlook.toNumber()}
-          code={primaryCode}
-          decimals={primaryDecimals}
-          symbol={primarySymbol}
-          ratio={outlook.gte(0) ? 0.7 : -0.35}
         />
-        <SpeedometerGauge
-          size="sm"
+
+        {/* Spending */}
+        <RadialArcMeter
+          pct={spendingRatio}
+          tone={spendingRatio <= 50 ? "success" : spendingRatio <= 80 ? "warning" : "danger"}
+          value={
+            <AnimatedMoney
+              amount={spendingAmt.toNumber()}
+              code={primaryCode}
+              decimals={primaryDecimals}
+              symbol={primarySymbol}
+            />
+          }
           label="Spending"
-          numericValue={spending.toNumber()}
-          code={primaryCode}
-          decimals={primaryDecimals}
-          symbol={primarySymbol}
-          ratio={spendingRatio}
         />
-        <SpeedometerGauge
-          size="sm"
-          label="Credit"
-          numericValue={creditPct}
-          suffix="%"
-          ratio={creditPct === 0 ? 0.85 : 0.85 - (creditPct / 100) * 1.7}
+
+        {/* Credit Utilization */}
+        <RadialArcMeter
+          pct={creditPct}
+          tone={creditPct <= 30 ? "success" : creditPct <= 50 ? "warning" : "danger"}
+          value={<AnimatedNumber value={creditPct} suffix="%" />}
+          label="Credit Use"
         />
-        <SpeedometerGauge
-          size="sm"
-          label="Debt"
-          numericValue={debtPct}
-          suffix="%"
-          ratio={debtPct === 0 ? 0.85 : 0.85 - (debtPct / 100) * 1.7}
+
+        {/* Debt-to-Asset */}
+        <RadialArcMeter
+          pct={debtPct}
+          tone={debtPct <= 20 ? "success" : debtPct <= 40 ? "warning" : "danger"}
+          value={<AnimatedNumber value={debtPct} suffix="%" />}
+          label="Debt Ratio"
         />
       </div>
 
-      <div className="flex items-center justify-between pt-1 text-xs">
-        <Link href="/transactions" className="font-semibold text-primary hover:underline">
-          View all records →
+      <div className="flex items-center justify-between text-xs pt-0.5">
+        <Link href="/transactions" className="font-semibold text-primary hover:underline flex items-center gap-1">
+          View all transactions <ArrowRight className="size-3" aria-hidden />
         </Link>
+        <span className="text-[11px] text-muted">
+          Base: {primaryCode} · {primaryDecimals} decimals
+        </span>
       </div>
     </div>
   );
