@@ -11,6 +11,8 @@ import type {
   ConfigEntry,
   Currency,
   ExchangeRate,
+  InsightEntry,
+  InsightTotalEntry,
   ListResponse,
   NewSplit,
   PiggyBank,
@@ -36,13 +38,26 @@ export class FireflyError extends Error {
   }
 }
 
-type Params = Record<string, string | number | boolean | undefined | null>;
+export type Params = Record<
+  string,
+  string | number | boolean | undefined | null | Array<string | number>
+>;
 
-function qs(params?: Params) {
+export function qs(params?: Params): string {
   if (!params) return "";
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
+    if (v === undefined || v === null || v === "") continue;
+    if (Array.isArray(v)) {
+      const key = k.endsWith("[]") ? k : `${k}[]`;
+      for (const item of v) {
+        if (item !== undefined && item !== null && item !== "") {
+          sp.append(key, String(item));
+        }
+      }
+    } else {
+      sp.set(k, String(v));
+    }
   }
   const s = sp.toString();
   return s ? `?${s}` : "";
@@ -210,6 +225,62 @@ export const api = {
   summary: (start: string, end: string) => ff.get<BasicSummary>("summary/basic", { start, end }),
   accountChart: (start: string, end: string) =>
     ff.get<ChartDataSet[]>("chart/account/overview", { start, end }),
+
+  // ---------- Insight & Analytical Helpers ----------
+  insightExpenseCategory: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/expense/category", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightExpenseNoCategory: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/expense/no-category", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightRevenueCategory: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/income/category", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightIncomeCategory: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/income/category", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightExpenseAsset: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/expense/asset", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightExpenseBill: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/expense/bill", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightExpenseBudget: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightEntry[]>("insight/expense/budget", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightExpenseTotal: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightTotalEntry[]>("insight/expense/total", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
+  insightIncomeTotal: (start: string, end: string, accountIds?: string[]) =>
+    ff.get<InsightTotalEntry[]>("insight/income/total", {
+      start,
+      end,
+      ...(accountIds?.length ? { accounts: accountIds } : {}),
+    }),
 
   budgets: (start: string, end: string) => getAll<Budget>("budgets", { start, end }),
   budgetLimits: (start: string, end: string) => getAll<BudgetLimit>("budget-limits", { start, end }),

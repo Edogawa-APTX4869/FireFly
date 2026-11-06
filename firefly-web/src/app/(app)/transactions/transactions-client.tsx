@@ -24,6 +24,9 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { useToast } from "@/components/providers";
+import { DesktopStickyFilterBar } from "@/components/filter-bar-desktop";
+import { MobileFilterDock } from "@/components/filter-dock-mobile";
+import { useUniversalFilter, type AccountFilterMode } from "@/lib/filter-context";
 
 export interface Filters {
   text: string;
@@ -56,15 +59,39 @@ function quoteIfNeeded(val: string): string {
   return /\s/.test(trimmed) ? `"${trimmed}"` : trimmed;
 }
 
-export function buildSearchQuery(f: Filters): string {
+export interface UniversalFilterScope {
+  startDate?: string;
+  endDate?: string;
+  accountFilter?: AccountFilterMode;
+  selectedAccountIds?: string[];
+}
+
+export function buildSearchQuery(f: Filters, universal?: UniversalFilterScope): string {
   const parts: string[] = [];
   if (f.type) parts.push(`type:${f.type}`);
-  if (f.accountId) parts.push(`account_id:${f.accountId}`);
+
+  if (f.accountId) {
+    parts.push(`account_id:${f.accountId}`);
+  } else if (universal) {
+    if (universal.accountFilter === "custom" && universal.selectedAccountIds && universal.selectedAccountIds.length > 0) {
+      if (universal.selectedAccountIds.length === 1) {
+        parts.push(`account_id:${universal.selectedAccountIds[0]}`);
+      } else {
+        const joined = universal.selectedAccountIds.map((id) => `account_id:${id}`).join(" OR ");
+        parts.push(`(${joined})`);
+      }
+    }
+  }
+
   if (f.category.trim()) parts.push(`category_is:${quoteIfNeeded(f.category)}`);
   if (f.tag.trim()) parts.push(`tag_is:${quoteIfNeeded(f.tag)}`);
   if (f.budget.trim()) parts.push(`budget_is:${quoteIfNeeded(f.budget)}`);
-  if (f.dateAfter) parts.push(`date_after:${f.dateAfter}`);
-  if (f.dateBefore) parts.push(`date_before:${f.dateBefore}`);
+
+  const dateAfter = f.dateAfter || universal?.startDate;
+  const dateBefore = f.dateBefore || universal?.endDate;
+
+  if (dateAfter) parts.push(`date_after:${dateAfter}`);
+  if (dateBefore) parts.push(`date_before:${dateBefore}`);
   if (f.amountMore.trim()) parts.push(`amount_more:${f.amountMore.trim()}`);
   if (f.amountLess.trim()) parts.push(`amount_less:${f.amountLess.trim()}`);
   if (f.text.trim()) parts.push(f.text.trim());
@@ -91,6 +118,7 @@ export function TransactionsClient() {
   const toast = useToast();
   const searchParams = useSearchParams();
   const paramKey = searchParams.toString();
+  const universalFilter = useUniversalFilter();
 
   const [filters, setFilters] = useState<Filters>(() => filtersFromParams((k) => searchParams.get(k)));
   const [prevParamKey, setPrevParamKey] = useState(paramKey);
@@ -113,8 +141,28 @@ export function TransactionsClient() {
     staleTime: 5 * 60_000,
   });
 
-  const searchQuery = useMemo(() => buildSearchQuery(filters), [filters]);
-  const hasActiveFilters = searchQuery.length > 0;
+  const searchQuery = useMemo(
+    () =>
+      buildSearchQuery(filters, {
+        startDate: universalFilter.startDate,
+        endDate: universalFilter.endDate,
+        accountFilter: universalFilter.accountFilter,
+        selectedAccountIds: universalFilter.selectedAccountIds,
+      }),
+    [
+      filters,
+      universalFilter.startDate,
+      universalFilter.endDate,
+      universalFilter.accountFilter,
+      universalFilter.selectedAccountIds,
+    ],
+  );
+
+  const hasUniversalFilters =
+    universalFilter.preset !== "this_month" ||
+    universalFilter.accountFilter !== "all_stats" ||
+    universalFilter.selectedAccountIds.length > 0;
+  const hasActiveFilters = searchQuery.length > 0 || hasUniversalFilters;
 
   const txQ = useInfiniteQuery({
     queryKey: ["transactions", "list", searchQuery],
@@ -152,7 +200,27 @@ export function TransactionsClient() {
     onError: (e) => toast((e as Error).message, "error"),
   });
 
-  const groups = txQ.data?.pages.flatMap((p) => p.data) ?? [];
+  const rawGroups = useMemo(() => txQ.data?.pages.flatMap((p) => p.data) ?? [], [txQ.data]);
+  const groups = useMemo(() => {
+    if (universalFilter.accountFilter !== "all_stats") return rawGroups;
+    const excludedAccountIds = new Set(
+      (accountsQ.data ?? [])
+        .filter((a) => a.attributes.include_net_worth === false)
+        .map((a) => a.id),
+    );
+    if (excludedAccountIds.size === 0) return rawGroups;
+    return rawGroups.filter((g) => {
+      const splits = g.attributes.transactions;
+      if (!splits || splits.length === 0) return true;
+      const allExcluded = splits.every(
+        (s) =>
+          (s.source_id && excludedAccountIds.has(s.source_id)) ||
+          (s.destination_id && excludedAccountIds.has(s.destination_id)),
+      );
+      return !allExcluded;
+    });
+  }, [rawGroups, universalFilter.accountFilter, accountsQ.data]);
+
   const assetAccounts = useMemo(
     () => (accountsQ.data ?? []).filter((a) => ASSET_LIKE.has(a.attributes.type)),
     [accountsQ.data],
@@ -160,16 +228,33 @@ export function TransactionsClient() {
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Desktop Sticky Universal Filter Bar */}
+      <DesktopStickyFilterBar />
+
+      {/* Mobile Floating Universal Filter Dock */}
+      <MobileFilterDock />
+
       <PageHeader
         title="Transactions"
-        subtitle={hasActiveFilters ? `Query: ${searchQuery}` : "All transactions"}
+        subtitle={
+          hasActiveFilters
+            ? `Period: ${universalFilter.displayLabel}${searchQuery ? ` • ${searchQuery}` : ""}`
+            : `${universalFilter.displayLabel} transactions`
+        }
         actions={
           <>
             <Button variant="secondary" size="sm" onClick={() => setShowFilters((s) => !s)}>
               <Filter className="size-4" aria-hidden /> Filters
             </Button>
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={() => setFilters(EMPTY_FILTERS)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilters(EMPTY_FILTERS);
+                  universalFilter.resetFilters();
+                }}
+              >
                 <RotateCcw className="size-4" aria-hidden /> Reset
               </Button>
             )}

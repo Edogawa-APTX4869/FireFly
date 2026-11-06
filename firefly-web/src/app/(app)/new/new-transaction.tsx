@@ -7,6 +7,7 @@ import Decimal from "decimal.js";
 import {
   ArrowLeftRight,
   BookmarkPlus,
+  Calculator,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -15,6 +16,7 @@ import {
   Minus,
   Paperclip,
   Plus,
+  RotateCcw,
   Sparkles,
   Trash2,
   Wand2,
@@ -25,7 +27,7 @@ import type { NewSplit } from "@/lib/firefly/types";
 import type { TransactionTemplateRow } from "@/lib/server/db";
 import { accountCurrency, ASSET_LIKE, useAccounts, useCurrencies } from "@/lib/hooks";
 import { formatRate } from "@/lib/fx/resolve";
-import { cn, isoDate, monthRange, parseAmount } from "@/lib/utils";
+import { cn, isoDate, monthRange, parseAmount, zeroPlaceholder } from "@/lib/utils";
 import { AccountPicker } from "@/components/account-picker";
 import { CategoryCascadeSelect } from "@/components/category-cascade";
 import { LinkedAmountFields, useLinkedAmounts, type CurrencyInfo } from "@/components/linked-amounts";
@@ -62,30 +64,218 @@ function savePair(p: Pair) {
   }
 }
 
-function evaluateCalcExpression(expr: string): string {
-  const cleaned = expr.replace(/[^0-9.+\-*/]/g, "");
-  if (!cleaned) return "0";
-  try {
-    // Tokenize numbers and + - * /
-    const tokens = cleaned.match(/(\d+(?:\.\d+)?|\.\d+|[+\-*/])/g);
-    if (!tokens || tokens.length === 0) return "0";
-    let acc = new Decimal(tokens[0] === "-" || tokens[0] === "+" ? "0" : tokens[0]);
-    let i = tokens[0] === "-" || tokens[0] === "+" ? 0 : 1;
-    while (i < tokens.length) {
-      const op = tokens[i];
-      const nextStr = tokens[i + 1];
-      if (!nextStr || /^[+\-*/]$/.test(nextStr)) break;
-      const val = new Decimal(nextStr);
-      if (op === "+") acc = acc.plus(val);
-      else if (op === "-") acc = acc.minus(val);
-      else if (op === "*") acc = acc.mul(val);
-      else if (op === "/") acc = val.isZero() ? acc : acc.div(val);
-      i += 2;
+export type MathToken =
+  | { type: "number"; value: Decimal }
+  | { type: "operator"; op: "+" | "-" | "*" | "/" }
+  | { type: "left_paren" }
+  | { type: "right_paren" };
+
+export function tokenizeMathExpression(expr: string): MathToken[] {
+  const cleaned = expr.trim();
+  if (!cleaned) return [];
+
+  const tokens: MathToken[] = [];
+  let i = 0;
+
+  while (i < cleaned.length) {
+    const char = cleaned[i];
+
+    if (/\s/.test(char)) {
+      i++;
+      continue;
     }
-    return acc.isNegative() ? "0" : acc.toSignificantDigits(10).toString();
-  } catch {
-    return parseAmount(cleaned) || "0";
+
+    if (char === "(") {
+      tokens.push({ type: "left_paren" });
+      i++;
+      continue;
+    }
+
+    if (char === ")") {
+      tokens.push({ type: "right_paren" });
+      i++;
+      continue;
+    }
+
+    if (char === "+" || char === "-" || char === "*" || char === "/") {
+      // Check for unary minus:
+      // A minus is unary if it is at the start of expression or preceded by operator or left paren
+      const prevToken = tokens[tokens.length - 1];
+      const isUnaryMinus =
+        char === "-" &&
+        (!prevToken || prevToken.type === "operator" || prevToken.type === "left_paren");
+
+      if (isUnaryMinus) {
+        // Read the number following the unary minus
+        let numStr = "-";
+        i++;
+        while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
+        while (i < cleaned.length && /[\d.]/.test(cleaned[i])) {
+          numStr += cleaned[i];
+          i++;
+        }
+        if (numStr === "-") {
+          // Unary minus with no number
+          continue;
+        }
+        try {
+          tokens.push({ type: "number", value: new Decimal(numStr) });
+        } catch {
+          // Malformed number
+        }
+        continue;
+      }
+
+      // Check for unary plus:
+      const isUnaryPlus =
+        char === "+" &&
+        (!prevToken || prevToken.type === "operator" || prevToken.type === "left_paren");
+      if (isUnaryPlus) {
+        i++;
+        continue;
+      }
+
+      tokens.push({ type: "operator", op: char });
+      i++;
+      continue;
+    }
+
+    if (/[\d.]/.test(char)) {
+      let numStr = "";
+      while (i < cleaned.length && /[\d.]/.test(cleaned[i])) {
+        numStr += cleaned[i];
+        i++;
+      }
+      try {
+        tokens.push({ type: "number", value: new Decimal(numStr) });
+      } catch {
+        // Ignore malformed token
+      }
+      continue;
+    }
+
+    // Skip any non-math character
+    i++;
   }
+
+  return tokens;
+}
+
+export function evaluateCalcExpression(expr: string): string {
+  if (!expr || !expr.trim()) return "0";
+
+  try {
+    const tokens = tokenizeMathExpression(expr);
+    if (tokens.length === 0) return "0";
+
+    // Clean up trailing operators if user is still typing (e.g. "150 +")
+    while (tokens.length > 0 && tokens[tokens.length - 1].type === "operator") {
+      tokens.pop();
+    }
+    if (tokens.length === 0) return "0";
+
+    // Convert infix tokens to postfix (RPN) via Shunting Yard
+    const outputQueue: MathToken[] = [];
+    const operatorStack: MathToken[] = [];
+
+    const precedence: Record<string, number> = {
+      "+": 1,
+      "-": 1,
+      "*": 2,
+      "/": 2,
+    };
+
+    for (const token of tokens) {
+      if (token.type === "number") {
+        outputQueue.push(token);
+      } else if (token.type === "operator") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1].type === "operator" &&
+          precedence[(operatorStack[operatorStack.length - 1] as Extract<MathToken, { type: "operator" }>).op] >= precedence[token.op]
+        ) {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        operatorStack.push(token);
+      } else if (token.type === "left_paren") {
+        operatorStack.push(token);
+      } else if (token.type === "right_paren") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1].type !== "left_paren"
+        ) {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        if (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].type === "left_paren") {
+          operatorStack.pop(); // Discard '('
+        }
+      }
+    }
+
+    while (operatorStack.length > 0) {
+      const top = operatorStack.pop()!;
+      if (top.type !== "left_paren" && top.type !== "right_paren") {
+        outputQueue.push(top);
+      }
+    }
+
+    if (outputQueue.length === 0) return "0";
+
+    // Evaluate RPN
+    const evalStack: Decimal[] = [];
+
+    for (const token of outputQueue) {
+      if (token.type === "number") {
+        evalStack.push(token.value);
+      } else if (token.type === "operator") {
+        if (evalStack.length < 2) continue;
+        const b = evalStack.pop()!;
+        const a = evalStack.pop()!;
+        let res: Decimal;
+
+        switch (token.op) {
+          case "+":
+            res = a.plus(b);
+            break;
+          case "-":
+            res = a.minus(b);
+            break;
+          case "*":
+            res = a.mul(b);
+            break;
+          case "/":
+            if (b.isZero()) {
+              // Division by zero: fall back to 0
+              res = new Decimal(0);
+            } else {
+              res = a.div(b);
+            }
+            break;
+          default:
+            res = new Decimal(0);
+        }
+        evalStack.push(res);
+      }
+    }
+
+    if (evalStack.length === 0) return "0";
+    const finalVal = evalStack[0];
+
+    // Clamping to 0 if negative, formatted cleanly
+    if (finalVal.isNegative()) return "0";
+
+    // Return clean fixed string without exponential notation, trimmed of trailing zeroes
+    const fixedStr = finalVal.toFixed();
+    return fixedStr.includes(".") ? fixedStr.replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1") : fixedStr;
+  } catch {
+    return "0";
+  }
+}
+
+export function applyDenominationChip(currentExpr: string, delta: number): string {
+  const currentVal = new Decimal(evaluateCalcExpression(currentExpr));
+  const nextVal = currentVal.plus(delta);
+  return nextVal.isNegative() ? "0" : nextVal.toString();
 }
 
 export function NewTransaction() {
@@ -588,229 +778,494 @@ function WalletCalculatorForm({
       <ErrorBox error={error} />
 
       {/* ADAPTIVE WORKSPACE:
-          - Mobile (< lg): flips between Calculator pane and Details pane via swipe or pull-tab
-          - Desktop (>= lg): 2-column split view (Left 5 cols = Amount + Accounts + Calculator; Right 7 cols = In-Depth Details) */}
+          - Mobile (< lg): flips between Keypad/Amount pane and Details pane via swipe or pull-tab
+          - Desktop (>= lg): ergonomic keyboard-first 2-column form
+            - Left Column (5 cols): Amount input with live math evaluation preview, denomination chips (+10, +50, +100), dual-currency preview with in-place rate editing
+            - Right Column (7 cols): Description, Source/Destination Accounts, Category cascade select, Date/Budget, Tags, Notes, Attachments, Submit */}
       <div className="lg:grid lg:grid-cols-12 lg:divide-x lg:divide-border">
-        {/* LEFT PANE: Amount Display + Account Selectors + Target Bar + Calculator Keypad */}
+        {/* LEFT PANE:
+            - On Mobile (< lg): Keypad view with Giant Amount card, inline account select, and 4x4 keypad
+            - On Desktop (>= lg): Keyboard-first financial core */}
         <div className={cn("flex-col lg:col-span-5 lg:flex", detailsOpen ? "hidden" : "flex")}>
-          <div className="flex flex-col gap-3 border-b border-border p-3 sm:p-4">
-            {/* Giant Amount Display + Mobile Pull-Tab */}
-            <div className={cn("relative flex min-h-28 flex-col items-center justify-center rounded-xl px-10 py-4", accentSoft)}>
-              <div className="flex items-baseline gap-2">
-                <span className={cn("tabular text-4xl font-semibold tracking-tight sm:text-5xl", accentText)}>
-                  {type === "withdrawal" ? "−" : type === "deposit" ? "+" : ""}
-                  {expr || state.fromAmount || "0"}
-                </span>
-                <span className="text-base font-medium text-muted">{assetCur?.code || "BHD"}</span>
-              </div>
-              {category && <Badge className="mt-2">{category.replace(/\s*:\s*/g, " › ")}</Badge>}
+          {/* MOBILE ONLY (< lg) KEYPAD VIEW */}
+          <div className="flex flex-col lg:hidden">
+            <div className="flex flex-col gap-3 border-b border-border p-3 sm:p-4">
+              {/* Giant Amount Display + Mobile Pull-Tab */}
+              <div className={cn("relative flex min-h-28 flex-col items-center justify-center rounded-xl px-10 py-4", accentSoft)}>
+                <div className="flex items-baseline gap-2">
+                  <span className={cn("tabular text-4xl font-semibold tracking-tight sm:text-5xl", accentText)}>
+                    {type === "withdrawal" ? "−" : type === "deposit" ? "+" : ""}
+                    {expr || state.fromAmount || "0"}
+                  </span>
+                  <span className="text-base font-medium text-muted">{assetCur?.code || "BHD"}</span>
+                </div>
+                {/* Live Formula Preview on mobile too if typing expression */}
+                {expr && /[+\-*/()]/.test(expr) && (
+                  <span className="mt-1 text-xs font-semibold text-muted">
+                    = {evaluateCalcExpression(expr)} {assetCur?.code}
+                  </span>
+                )}
+                {category && <Badge className="mt-2">{category.replace(/\s*:\s*/g, " › ")}</Badge>}
 
-              {/* Mobile pull-tab to flip to details */}
+                {/* Mobile pull-tab to flip to details */}
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen((o) => !o)}
+                  aria-label={detailsOpen ? "Back to calculator" : "Open in-depth details"}
+                  title="Swipe or tap for in-depth details"
+                  className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-fg"
+                >
+                  {detailsOpen ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+                </button>
+              </div>
+
+              {/* Inline From → To / Category bar */}
+              <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                <label className="flex min-w-0 flex-col gap-1">
+                  <span className="text-xs text-muted">{type === "deposit" ? "To account" : "From account"}</span>
+                  <Select
+                    value={assetId ?? ""}
+                    onChange={(e) => {
+                      setAssetId(e.target.value);
+                      linked.controls.reset();
+                    }}
+                    aria-label="Select primary account"
+                  >
+                    {assetLike.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.attributes.name} ({a.attributes.currency_code})
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+
+                {type === "transfer" ? (
+                  <button
+                    type="button"
+                    onClick={swapTransferAccounts}
+                    title="Swap source and destination accounts"
+                    aria-label="Swap source and destination accounts"
+                    className="mb-1 flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg"
+                  >
+                    <ArrowLeftRight className="size-4" />
+                  </button>
+                ) : (
+                  <span className="pb-2.5 text-muted">→</span>
+                )}
+
+                {type === "transfer" ? (
+                  <label className="flex min-w-0 flex-col gap-1">
+                    <span className="text-xs text-muted">To account</span>
+                    <Select
+                      value={effectiveDestId ?? ""}
+                      onChange={(e) => {
+                        setDestId(e.target.value);
+                        linked.controls.reset();
+                      }}
+                      aria-label="Select destination account"
+                    >
+                      {assetLike
+                        .filter((a) => a.id !== assetId)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.attributes.name} ({a.attributes.currency_code})
+                          </option>
+                        ))}
+                    </Select>
+                  </label>
+                ) : (
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <span className="text-xs text-muted">Category</span>
+                    <div className="flex items-center gap-1.5">
+                      {category && (
+                        <ResourceIconBadge
+                          entityType="category"
+                          entityId={
+                            categoriesQ.data?.find((c) => c.attributes.name.toLowerCase() === category.toLowerCase())?.id ??
+                            category
+                          }
+                          defaultIcon={inferCategoryDefaultStyle(category).icon}
+                          defaultColor={inferCategoryDefaultStyle(category).color}
+                          size="sm"
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setDetailsOpen(true)}
+                        className="min-w-0 flex-1 justify-start truncate"
+                      >
+                        {category ? category.replace(/\s*:\s*/g, " › ") : counterparty || "Choose…"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Target Amount Bar for Cross-Currency Transfers / Foreign Expenses (Mobile) */}
+            {state.isCross && otherCur && (
+              <div className="flex flex-wrap items-center justify-center gap-2 border-b border-border bg-surface-2 px-4 py-2.5 text-xs">
+                <span className="text-muted">Target amount ~</span>
+                <button
+                  type="button"
+                  onClick={openSetupCurrencyModal}
+                  className="font-semibold text-primary underline decoration-primary/50 underline-offset-2 hover:opacity-80"
+                >
+                  {otherCur.symbol || otherCur.code}
+                  {state.toAmount || "0.00"} ({otherCur.code})
+                </button>
+                {state.rate && (
+                  <span className="text-[11px] text-muted">
+                    · 1 {assetCur?.code} = {formatRate(state.rate)} {otherCur.code}
+                  </span>
+                )}
+                <Badge tone={rateMode === "save" && state.isManualRate ? "primary" : "neutral"}>
+                  {state.isManualRate ? (rateMode === "save" ? "Saves new rate" : "One-time rate") : "Stored rate"}
+                </Badge>
+              </div>
+            )}
+
+            {/* Quick Description Bar above keypad (Mobile) */}
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 text-xs">
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={defaultDescription() + " (tap to add note / description)…"}
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+              />
               <button
                 type="button"
-                onClick={() => setDetailsOpen((o) => !o)}
-                aria-label={detailsOpen ? "Back to calculator" : "Open in-depth details"}
-                title="Swipe or tap for in-depth details"
-                className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-sm hover:text-fg lg:hidden"
+                onClick={() => setDetailsOpen(true)}
+                className="shrink-0 rounded-lg bg-primary-soft px-2.5 py-1 font-semibold text-primary"
               >
-                {detailsOpen ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+                Details & Category →
               </button>
             </div>
 
-            {/* Inline From → To / Category bar */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-              <label className="flex min-w-0 flex-col gap-1">
-                <span className="text-xs text-muted">{type === "deposit" ? "To account" : "From account"}</span>
-                <Select
-                  value={assetId ?? ""}
-                  onChange={(e) => {
-                    setAssetId(e.target.value);
-                    linked.controls.reset();
-                  }}
-                  aria-label="Select primary account"
-                >
-                  {assetLike.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.attributes.name} ({a.attributes.currency_code})
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              {type === "transfer" ? (
+            {/* 4x4 Calculator Keypad (Mobile only) */}
+            <div className="grid flex-1 grid-cols-4 select-none bg-surface">
+              <div className="col-span-3 grid grid-cols-3 divide-x divide-y divide-border">
+                {["7", "8", "9", "4", "5", "6", "1", "2", "3"].map((digit) => (
+                  <button
+                    key={digit}
+                    type="button"
+                    onClick={() => onCalcPress(digit)}
+                    className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
+                  >
+                    {digit}
+                  </button>
+                ))}
                 <button
                   type="button"
-                  onClick={swapTransferAccounts}
-                  title="Swap source and destination accounts"
-                  aria-label="Swap source and destination accounts"
-                  className="mb-1 flex size-9 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg"
+                  onClick={() => onCalcPress(".")}
+                  className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
                 >
-                  <ArrowLeftRight className="size-4" />
+                  .
                 </button>
-              ) : (
-                <span className="pb-2.5 text-muted">→</span>
+                <button
+                  type="button"
+                  onClick={() => onCalcPress("0")}
+                  className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCalcPress("BACK")}
+                  aria-label="Backspace"
+                  className="flex h-16 items-center justify-center text-muted hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
+                >
+                  <Delete className="size-5" />
+                </button>
+              </div>
+
+              {/* Right column operators */}
+              <div className="grid grid-rows-5 divide-y divide-border border-l border-border bg-surface-2">
+                {[
+                  { key: "/", label: "÷" },
+                  { key: "*", label: "×" },
+                  { key: "-", label: "−" },
+                  { key: "+", label: "+" },
+                  { key: "=", label: "=" },
+                ].map((op) => (
+                  <button
+                    key={op.key}
+                    type="button"
+                    onClick={() => onCalcPress(op.key)}
+                    className="flex items-center justify-center text-xl font-medium text-muted hover:text-fg active:bg-border"
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 border-t border-border bg-surface-2 px-4 py-3">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setDetailsOpen(true)}>
+                More details (Category, Budget, Tags)
+              </Button>
+              <Button type="button" onClick={() => mutation.mutate()} loading={mutation.isPending}>
+                <Check className="size-4" aria-hidden /> Save {TABS.find((t) => t.type === type)?.label.toLowerCase()}
+              </Button>
+            </div>
+          </div>
+
+          {/* DESKTOP KEYBOARD-FIRST FINANCIAL COLUMN (>= lg) */}
+          <div className="hidden lg:flex flex-col gap-5 p-5">
+            {/* Amount Input with Live Math Evaluator */}
+            <div className="flex flex-col gap-2">
+              <label htmlFor="desktop-amount" className="flex items-center justify-between text-sm font-semibold">
+                <span>Amount</span>
+                <span className="text-xs font-normal text-muted">Keyboard math (e.g. 150 + 25 * 3)</span>
+              </label>
+
+              <div className="relative">
+                <Input
+                  id="desktop-amount"
+                  name="amount"
+                  type="text"
+                  autoComplete="off"
+                  value={expr}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setExpr(val);
+                    const evaluated = evaluateCalcExpression(val);
+                    linked.controls.setFrom(evaluated === "0" && !val ? "" : evaluated);
+                  }}
+                  onBlur={() => {
+                    if (expr && /[+\-*/()]/.test(expr)) {
+                      const evaluated = evaluateCalcExpression(expr);
+                      setExpr(evaluated);
+                      linked.controls.setFrom(evaluated);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "=") {
+                      e.preventDefault();
+                      const evaluated = evaluateCalcExpression(expr);
+                      setExpr(evaluated);
+                      linked.controls.setFrom(evaluated);
+                    }
+                  }}
+                  placeholder="0.00"
+                  className={cn(
+                    "tabular h-14 pr-20 text-3xl font-semibold tracking-tight transition",
+                    accentText,
+                  )}
+                  autoFocus
+                />
+                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-bold text-muted">
+                  {assetCur?.code || "—"}
+                </span>
+              </div>
+
+              {/* Live Math Expression Evaluation Preview */}
+              {expr && /[+\-*/()]/.test(expr) && (
+                <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary-soft/60 px-3.5 py-2 text-xs font-medium text-primary">
+                  <div className="flex items-center gap-1.5">
+                    <Calculator className="size-3.5" aria-hidden />
+                    <span>Formula Preview (PEMDAS):</span>
+                  </div>
+                  <span className="tabular text-sm font-bold">
+                    = {evaluateCalcExpression(expr)} {assetCur?.code}
+                  </span>
+                </div>
               )}
 
-              {type === "transfer" ? (
-                <label className="flex min-w-0 flex-col gap-1">
-                  <span className="text-xs text-muted">To account</span>
+              {/* Quick Denomination Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs font-medium text-muted">Quick add:</span>
+                {[10, 25, 50, 100, 500].map((delta) => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => {
+                      const next = applyDenominationChip(expr || state.fromAmount || "0", delta);
+                      setExpr(next);
+                      linked.controls.setFrom(next);
+                    }}
+                    className="rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-fg hover:border-primary hover:bg-primary-soft transition active:scale-95"
+                  >
+                    +{delta}
+                  </button>
+                ))}
+                {expr && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpr("");
+                      linked.controls.setFrom("");
+                    }}
+                    className="ml-auto rounded-lg border border-border px-2 py-1 text-xs text-muted hover:border-danger hover:text-danger transition"
+                    title="Clear amount"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Currency Selector (when not transfer) */}
+            {type !== "transfer" && (
+              <Field label="Payment currency (optional foreign currency)">
+                {(id) => (
                   <Select
-                    value={effectiveDestId ?? ""}
+                    id={id}
+                    value={foreignCode}
                     onChange={(e) => {
-                      setDestId(e.target.value);
+                      setForeignCode(e.target.value === assetCur?.code ? "" : e.target.value);
                       linked.controls.reset();
                     }}
-                    aria-label="Select destination account"
                   >
-                    {assetLike
-                      .filter((a) => a.id !== assetId)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.attributes.name} ({a.attributes.currency_code})
+                    <option value="">{assetCur ? `${assetCur.code} (Account currency)` : "Account currency"}</option>
+                    {currenciesQ.data
+                      ?.filter((c) => c.attributes.enabled !== false && c.attributes.code !== assetCur?.code)
+                      .map((c) => (
+                        <option key={c.id} value={c.attributes.code}>
+                          {c.attributes.code} · {c.attributes.name}
                         </option>
                       ))}
                   </Select>
-                </label>
-              ) : (
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-xs text-muted">Category</span>
+                )}
+              </Field>
+            )}
+
+            {/* Live Dual-Currency Preview with In-Place Exchange Rate Editing */}
+            {state.isCross && otherCur && (
+              <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface-2/40 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted">
+                    Target amount ({otherCur.code})
+                  </span>
+                  <Badge tone={rateMode === "save" && state.isManualRate ? "primary" : "neutral"}>
+                    {state.isManualRate ? (rateMode === "save" ? "Saves new rate" : "One-time rate") : "Stored rate"}
+                  </Badge>
+                </div>
+
+                <div className="relative">
+                  <Input
+                    id="desktop-target-amount"
+                    name="targetAmount"
+                    inputMode="decimal"
+                    value={linked.controls.toValue}
+                    onChange={(e) => linked.controls.setTo(e.target.value)}
+                    placeholder={zeroPlaceholder(otherCur.decimals)}
+                    className="tabular h-12 pr-16 text-lg font-semibold"
+                  />
+                  <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-md bg-surface px-2 py-0.5 text-xs font-bold text-muted">
+                    {otherCur.code}
+                  </span>
+                </div>
+
+                {/* Inline Exchange Rate Editor */}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-surface p-2.5 text-xs">
                   <div className="flex items-center gap-1.5">
-                    {category && (
-                      <ResourceIconBadge
-                        entityType="category"
-                        entityId={
-                          categoriesQ.data?.find((c) => c.attributes.name.toLowerCase() === category.toLowerCase())?.id ??
-                          category
-                        }
-                        defaultIcon={inferCategoryDefaultStyle(category).icon}
-                        defaultColor={inferCategoryDefaultStyle(category).color}
-                        size="sm"
-                      />
-                    )}
+                    <span className="text-muted">1 {assetCur?.code} =</span>
+                    <Input
+                      aria-label={`Exchange rate ${assetCur?.code} to ${otherCur.code}`}
+                      inputMode="decimal"
+                      value={linked.controls.rateOverride ?? (state.rate ? formatRate(state.rate) : "")}
+                      onChange={(e) => linked.controls.setRateOverride(e.target.value || null)}
+                      className="h-7 w-24 text-center font-bold text-xs"
+                    />
+                    <span className="font-semibold">{otherCur.code}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => setDetailsOpen(true)}
-                      className="min-w-0 flex-1 justify-start truncate"
+                      size="sm"
+                      onClick={() => {
+                        if (state.rate && state.rate.gt(0)) {
+                          const inv = new Decimal(1).div(state.rate).toSignificantDigits(8).toString();
+                          linked.controls.setRateOverride(inv);
+                        }
+                      }}
+                      className="h-7 px-2 text-xs"
+                      title="Invert rate (1 ÷ r)"
                     >
-                      {category ? category.replace(/\s*:\s*/g, " › ") : counterparty || "Choose…"}
+                      <ArrowLeftRight className="size-3" /> Invert (1÷r)
                     </Button>
+                    {linked.controls.rateOverride && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => linked.controls.setRateOverride(null)}
+                        className="h-7 px-2 text-xs text-muted"
+                        title="Use stored rate"
+                      >
+                        <RotateCcw className="size-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Target Amount Bar for Cross-Currency Transfers / Foreign Expenses */}
-          {state.isCross && otherCur && (
-            <div className="flex flex-wrap items-center justify-center gap-2 border-b border-border bg-surface-2 px-4 py-2.5 text-xs">
-              <span className="text-muted">Target amount ~</span>
-              <button
-                type="button"
-                onClick={openSetupCurrencyModal}
-                className="font-semibold text-primary underline decoration-primary/50 underline-offset-2 hover:opacity-80"
-              >
-                {otherCur.symbol || otherCur.code}
-                {state.toAmount || "0.00"} ({otherCur.code})
-              </button>
-              {state.rate && (
-                <span className="text-[11px] text-muted">
-                  · 1 {assetCur?.code} = {formatRate(state.rate)} {otherCur.code}
-                </span>
-              )}
-              <Badge tone={rateMode === "save" && state.isManualRate ? "primary" : "neutral"}>
-                {state.isManualRate ? (rateMode === "save" ? "Saves new rate" : "One-time rate") : "Stored rate"}
-              </Badge>
-            </div>
-          )}
+                {/* Inline Rate Mode Selector */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <span className="text-[11px] font-semibold text-muted">How should this exchange rate apply?</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRateMode("save")}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
+                        rateMode === "save"
+                          ? "border-primary bg-primary-soft text-primary font-semibold"
+                          : "border-border text-muted hover:bg-surface",
+                      )}
+                    >
+                      Save new rate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRateMode("once")}
+                      className={cn(
+                        "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
+                        rateMode === "once"
+                          ? "border-primary bg-primary-soft text-primary font-semibold"
+                          : "border-border text-muted hover:bg-surface",
+                      )}
+                    >
+                      One-time change
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
-          {/* Quick Description Bar above keypad (mobile) */}
-          <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 text-xs lg:hidden">
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={defaultDescription() + " (tap to add note / description)…"}
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
-            />
-            <button
-              type="button"
-              onClick={() => setDetailsOpen(true)}
-              className="shrink-0 rounded-lg bg-primary-soft px-2.5 py-1 font-semibold text-primary"
-            >
-              Details & Category →
-            </button>
-          </div>
-
-          {/* 4x4 Calculator Keypad */}
-          <div className="grid flex-1 grid-cols-4 select-none bg-surface">
-            <div className="col-span-3 grid grid-cols-3 divide-x divide-y divide-border">
-              {["7", "8", "9", "4", "5", "6", "1", "2", "3"].map((digit) => (
-                <button
-                  key={digit}
-                  type="button"
-                  onClick={() => onCalcPress(digit)}
-                  className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
-                >
-                  {digit}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => onCalcPress(".")}
-                className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
-              >
-                .
-              </button>
-              <button
-                type="button"
-                onClick={() => onCalcPress("0")}
-                className="flex h-16 items-center justify-center text-2xl font-normal text-fg hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                onClick={() => onCalcPress("BACK")}
-                aria-label="Backspace"
-                className="flex h-16 items-center justify-center text-muted hover:bg-surface-2/60 active:bg-surface-2 sm:h-18"
-              >
-                <Delete className="size-5" />
-              </button>
-            </div>
-
-            {/* Right column operators */}
-            <div className="grid grid-rows-5 divide-y divide-border border-l border-border bg-surface-2">
-              {[
-                { key: "/", label: "÷" },
-                { key: "*", label: "×" },
-                { key: "-", label: "−" },
-                { key: "+", label: "+" },
-                { key: "=", label: "=" },
-              ].map((op) => (
-                <button
-                  key={op.key}
-                  type="button"
-                  onClick={() => onCalcPress(op.key)}
-                  className="flex items-center justify-center text-xl font-medium text-muted hover:text-fg active:bg-border"
-                >
-                  {op.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 border-t border-border bg-surface-2 px-4 py-3 lg:hidden">
-            <Button type="button" variant="secondary" size="sm" onClick={() => setDetailsOpen(true)}>
-              More details (Category, Budget, Tags)
-            </Button>
-            <Button type="button" onClick={() => mutation.mutate()} loading={mutation.isPending}>
-              <Check className="size-4" aria-hidden /> Save {TABS.find((t) => t.type === type)?.label.toLowerCase()}
-            </Button>
+            {/* Transfer Pairs Quick Selector (when transfer) */}
+            {type === "transfer" && pairs.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                <span className="text-xs text-muted">Recent pairs:</span>
+                {pairs
+                  .map((p) => ({ p, s: assetLike.find((a) => a.id === p.s), d: assetLike.find((a) => a.id === p.d) }))
+                  .filter((x) => x.s && x.d)
+                  .map(({ p, s, d }) => (
+                    <button
+                      key={`${p.s}-${p.d}`}
+                      type="button"
+                      onClick={() => {
+                        setAssetId(p.s);
+                        setDestId(p.d);
+                        linked.controls.reset();
+                      }}
+                      className="rounded-full border border-border px-2.5 py-0.5 text-xs font-medium hover:border-primary hover:bg-surface-2 transition"
+                    >
+                      {s!.attributes.name} → {d!.attributes.name}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* RIGHT PANE: IN-DEPTH DETAILS VIEW (Always visible on Desktop, swipe/toggle on Mobile) */}
+        {/* RIGHT PANE: IN-DEPTH DETAILS VIEW
+            - On Desktop (>= lg): Always visible, keyboard-first fields (Description, Source/Dest Account, Category, Budget, Tags, Date, Notes, Submission buttons)
+            - On Mobile (< lg): Shown when detailsOpen is true */}
         <div className={cn("flex-col gap-4 p-4 sm:p-5 lg:col-span-7 lg:flex", detailsOpen ? "flex fade-in" : "hidden")}>
           <div className="flex items-center justify-between lg:hidden">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDetailsOpen(false)}>
@@ -823,29 +1278,19 @@ function WalletCalculatorForm({
             )}
           </div>
 
-          {type === "transfer" && pairs.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted">Recent pairs:</span>
-              {pairs
-                .map((p) => ({ p, s: assetLike.find((a) => a.id === p.s), d: assetLike.find((a) => a.id === p.d) }))
-                .filter((x) => x.s && x.d)
-                .map(({ p, s, d }) => (
-                  <button
-                    key={`${p.s}-${p.d}`}
-                    type="button"
-                    onClick={() => {
-                      setAssetId(p.s);
-                      setDestId(p.d);
-                      linked.controls.reset();
-                    }}
-                    className="rounded-full border border-border px-3 py-1 text-xs font-medium hover:bg-surface-2"
-                  >
-                    {s!.attributes.name} → {d!.attributes.name}
-                  </button>
-                ))}
-            </div>
-          )}
+          {/* Description field at top of right pane for clean keyboard tab navigation from Amount */}
+          <Field label="Description">
+            {(id) => (
+              <Input
+                id={id}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={defaultDescription()}
+              />
+            )}
+          </Field>
 
+          {/* Account Pickers */}
           <div className="grid gap-3 sm:grid-cols-2">
             <AccountPicker
               label={type === "deposit" ? "Received into" : "From account"}
@@ -877,7 +1322,6 @@ function WalletCalculatorForm({
                       value={counterparty}
                       onChange={(e) => setCounterparty(e.target.value)}
                       placeholder={type === "withdrawal" ? "e.g. Supermarket" : "e.g. Employer"}
-                      className="h-14"
                     />
                     <datalist id={`${id}-list`}>
                       {(type === "withdrawal" ? expenseNames : revenueNames).map((n) => (
@@ -890,54 +1334,46 @@ function WalletCalculatorForm({
             )}
           </div>
 
-          {type !== "transfer" && (
-            <Field label="Payment currency (optional foreign currency)">
-              {(id) => (
-                <Select
-                  id={id}
-                  value={foreignCode}
-                  onChange={(e) => {
-                    setForeignCode(e.target.value === assetCur?.code ? "" : e.target.value);
-                    linked.controls.reset();
-                  }}
-                >
-                  <option value="">{assetCur ? `${assetCur.code} (account currency)` : "Account currency"}</option>
-                  {currenciesQ.data
-                    ?.filter((c) => c.attributes.enabled !== false && c.attributes.code !== assetCur?.code)
-                    .map((c) => (
-                      <option key={c.id} value={c.attributes.code}>
-                        {c.attributes.code} · {c.attributes.name}
-                      </option>
-                    ))}
-                </Select>
-              )}
-            </Field>
-          )}
+          {/* Mobile-only LinkedAmountFields (Desktop uses Left Column financial core) */}
+          <div className="lg:hidden">
+            {type !== "transfer" && (
+              <Field label="Payment currency (optional foreign currency)">
+                {(id) => (
+                  <Select
+                    id={id}
+                    value={foreignCode}
+                    onChange={(e) => {
+                      setForeignCode(e.target.value === assetCur?.code ? "" : e.target.value);
+                      linked.controls.reset();
+                    }}
+                  >
+                    <option value="">{assetCur ? `${assetCur.code} (account currency)` : "Account currency"}</option>
+                    {currenciesQ.data
+                      ?.filter((c) => c.attributes.enabled !== false && c.attributes.code !== assetCur?.code)
+                      .map((c) => (
+                        <option key={c.id} value={c.attributes.code}>
+                          {c.attributes.code} · {c.attributes.name}
+                        </option>
+                      ))}
+                  </Select>
+                )}
+              </Field>
+            )}
 
-          <LinkedAmountFields
-            from={assetCur}
-            to={otherCur}
-            fromLabel={`Amount (${assetCur?.code || ""})`}
-            toLabel={`Target amount (${otherCur?.code || ""})`}
-            linked={linked}
-          />
+            <LinkedAmountFields
+              from={assetCur}
+              to={otherCur}
+              fromLabel={`Amount (${assetCur?.code || ""})`}
+              toLabel={`Target amount (${otherCur?.code || ""})`}
+              linked={linked}
+            />
+          </div>
 
           <div className="sm:col-span-2">
             <CategoryCascadeSelect categories={categoriesQ.data} value={category} onChange={setCategory} />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Description">
-              {(id) => (
-                <Input
-                  id={id}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={defaultDescription()}
-                />
-              )}
-            </Field>
-
+          <div className={cn("grid gap-3", type === "withdrawal" ? "sm:grid-cols-2" : "grid-cols-1")}>
             <Field label="Date">
               {(id) => <Input id={id} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />}
             </Field>
@@ -958,18 +1394,18 @@ function WalletCalculatorForm({
                 )}
               </Field>
             )}
-
-            <Field label="Tags (comma-separated)">
-              {(id) => (
-                <>
-                  <Input id={id} list={`${id}-tags`} value={tags} onChange={(e) => setTags(e.target.value)} />
-                  <datalist id={`${id}-tags`}>
-                    {tagsQ.data?.map((t) => <option key={t.id} value={t.attributes.tag} />)}
-                  </datalist>
-                </>
-              )}
-            </Field>
           </div>
+
+          <Field label="Tags (comma-separated)">
+            {(id) => (
+              <>
+                <Input id={id} list={`${id}-tags`} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. food, tech, transport" />
+                <datalist id={`${id}-tags`}>
+                  {tagsQ.data?.map((t) => <option key={t.id} value={t.attributes.tag} />)}
+                </datalist>
+              </>
+            )}
+          </Field>
 
           <Field label="Notes">
             {(id) => (
@@ -978,6 +1414,7 @@ function WalletCalculatorForm({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
+                placeholder="Optional notes or memos…"
                 className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
               />
             )}
@@ -1044,8 +1481,8 @@ function WalletCalculatorForm({
             )}
           </Field>
 
-          {/* Save as reusable Template */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          {/* Save as reusable Template & Submission buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
             {!showSaveTemplate ? (
               <Button type="button" variant="ghost" size="sm" onClick={() => setShowSaveTemplate(true)}>
                 <BookmarkPlus className="size-4" aria-hidden /> Save as 1-tap Template
@@ -1067,9 +1504,14 @@ function WalletCalculatorForm({
               </div>
             )}
 
-            <Button type="button" onClick={() => mutation.mutate()} loading={mutation.isPending}>
-              <Check className="size-4" aria-hidden /> Save {TABS.find((t) => t.type === type)?.label.toLowerCase()}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={() => router.back()}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={() => mutation.mutate()} loading={mutation.isPending}>
+                <Check className="size-4" aria-hidden /> Save {TABS.find((t) => t.type === type)?.label.toLowerCase()}
+              </Button>
+            </div>
           </div>
 
           {matchingTemplates.length > 0 && (

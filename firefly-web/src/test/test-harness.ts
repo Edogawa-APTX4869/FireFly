@@ -467,3 +467,743 @@ export function hasSafeAreaInsets(cssText: string): SafeAreaCheck {
   };
 }
 
+
+// ============================================================================
+// 7. R5: Universal Filter Engine Specification Contract
+// ============================================================================
+
+export type PeriodPreset =
+  | "7D"
+  | "30D"
+  | "12W"
+  | "6M"
+  | "1Y"
+  | "this_month"
+  | "last_month"
+  | "this_year"
+  | "last_year"
+  | "custom";
+
+export type AccountFilterMode = "all_stats" | "all" | "custom";
+
+export interface FilterState {
+  preset: PeriodPreset;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  accountFilter: AccountFilterMode;
+  selectedAccountIds: string[];
+}
+
+/**
+ * Format Date to YYYY-MM-DD string in UTC to avoid time-zone drift
+ */
+export function formatIsoDateUtc(d: Date): string {
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function parseIsoDateUtc(str: string): Date {
+  const parts = str.split("-").map(Number);
+  return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+}
+
+/**
+ * Derives start and end date for any filter preset based on an optional reference date (defaults to today)
+ */
+export function calculatePresetDateRange(
+  preset: PeriodPreset,
+  referenceDateStr?: string,
+): { startDate: string; endDate: string } {
+  const ref = referenceDateStr ? parseIsoDateUtc(referenceDateStr) : new Date();
+  const refYear = ref.getUTCFullYear();
+  const refMonth = ref.getUTCMonth();
+  const refDate = ref.getUTCDate();
+
+  switch (preset) {
+    case "7D": {
+      // 7 days inclusive: [ref - 6 days, ref]
+      const start = new Date(Date.UTC(refYear, refMonth, refDate - 6));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(ref) };
+    }
+    case "30D": {
+      // 30 days inclusive: [ref - 29 days, ref]
+      const start = new Date(Date.UTC(refYear, refMonth, refDate - 29));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(ref) };
+    }
+    case "12W": {
+      // 12 weeks = 84 days inclusive: [ref - 83 days, ref]
+      const start = new Date(Date.UTC(refYear, refMonth, refDate - 83));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(ref) };
+    }
+    case "6M": {
+      // 6 calendar months ago to today
+      const start = new Date(Date.UTC(refYear, refMonth - 6, refDate));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(ref) };
+    }
+    case "1Y": {
+      // 1 calendar year ago to today
+      const start = new Date(Date.UTC(refYear - 1, refMonth, refDate));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(ref) };
+    }
+    case "this_month": {
+      const start = new Date(Date.UTC(refYear, refMonth, 1));
+      // Last day of current month: Day 0 of next month
+      const end = new Date(Date.UTC(refYear, refMonth + 1, 0));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(end) };
+    }
+    case "last_month": {
+      const start = new Date(Date.UTC(refYear, refMonth - 1, 1));
+      const end = new Date(Date.UTC(refYear, refMonth, 0));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(end) };
+    }
+    case "this_year": {
+      const start = new Date(Date.UTC(refYear, 0, 1));
+      const end = new Date(Date.UTC(refYear, 11, 31));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(end) };
+    }
+    case "last_year": {
+      const start = new Date(Date.UTC(refYear - 1, 0, 1));
+      const end = new Date(Date.UTC(refYear - 1, 11, 31));
+      return { startDate: formatIsoDateUtc(start), endDate: formatIsoDateUtc(end) };
+    }
+    case "custom":
+    default: {
+      return { startDate: formatIsoDateUtc(ref), endDate: formatIsoDateUtc(ref) };
+    }
+  }
+}
+
+/**
+ * Step backward (-1) or forward (+1) by one period duration
+ */
+export function stepPeriod(
+  current: { preset?: PeriodPreset; startDate: string; endDate: string },
+  direction: -1 | 1,
+): { startDate: string; endDate: string } {
+  const { preset = "custom", startDate, endDate } = current;
+  const start = parseIsoDateUtc(startDate);
+  const end = parseIsoDateUtc(endDate);
+
+  switch (preset) {
+    case "7D": {
+      const shiftedStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + direction * 7));
+      const shiftedEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + direction * 7));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "30D": {
+      const shiftedStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + direction * 30));
+      const shiftedEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + direction * 30));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "12W": {
+      const shiftedStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + direction * 84));
+      const shiftedEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + direction * 84));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "6M": {
+      const shiftedStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + direction * 6, start.getUTCDate()));
+      const shiftedEnd = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + direction * 6, end.getUTCDate()));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "1Y": {
+      const shiftedStart = new Date(Date.UTC(start.getUTCFullYear() + direction, start.getUTCMonth(), start.getUTCDate()));
+      const shiftedEnd = new Date(Date.UTC(end.getUTCFullYear() + direction, end.getUTCMonth(), end.getUTCDate()));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "this_month":
+    case "last_month": {
+      // Step to whole calendar month
+      const currentYear = start.getUTCFullYear();
+      const currentMonth = start.getUTCMonth();
+      const targetMonth = currentMonth + direction;
+      const shiftedStart = new Date(Date.UTC(currentYear, targetMonth, 1));
+      const shiftedEnd = new Date(Date.UTC(currentYear, targetMonth + 1, 0));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "this_year":
+    case "last_year": {
+      // Step whole calendar year
+      const targetYear = start.getUTCFullYear() + direction;
+      const shiftedStart = new Date(Date.UTC(targetYear, 0, 1));
+      const shiftedEnd = new Date(Date.UTC(targetYear, 11, 31));
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+    case "custom":
+    default: {
+      // Compute span in milliseconds and shift both ends
+      const spanMs = end.getTime() - start.getTime() + 24 * 60 * 60 * 1000;
+      const shiftedStart = new Date(start.getTime() + direction * spanMs);
+      const shiftedEnd = new Date(end.getTime() + direction * spanMs);
+      return { startDate: formatIsoDateUtc(shiftedStart), endDate: formatIsoDateUtc(shiftedEnd) };
+    }
+  }
+}
+
+/**
+ * Filter accounts based on mode:
+ * - 'all_stats': exclude accounts where include_net_worth === false
+ * - 'all': all accounts included
+ * - 'custom': only selected account IDs
+ */
+export function filterAccountsForStats<T extends { id: string; include_net_worth?: boolean; attributes?: { include_net_worth?: boolean } }>(
+  accounts: T[],
+  mode: AccountFilterMode,
+  selectedAccountIds: string[] = [],
+): T[] {
+  if (mode === "all") {
+    return accounts;
+  }
+  if (mode === "custom") {
+    const set = new Set(selectedAccountIds);
+    return accounts.filter((a) => set.has(a.id));
+  }
+  // 'all_stats' (default)
+  return accounts.filter((a) => {
+    if (a.include_net_worth === false) return false;
+    if (a.attributes && a.attributes.include_net_worth === false) return false;
+    return true;
+  });
+}
+
+/**
+ * Serialize FilterState to URLSearchParams or query string
+ */
+export function serializeFilterToQueryParams(state: FilterState): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set("period", state.preset);
+  params.set("start", state.startDate);
+  params.set("end", state.endDate);
+  params.set("account_filter", state.accountFilter);
+  if (state.accountFilter === "custom" && state.selectedAccountIds.length > 0) {
+    for (const id of state.selectedAccountIds) {
+      params.append("accounts[]", id);
+    }
+  }
+  return params;
+}
+
+/**
+ * Deserialize FilterState from URLSearchParams
+ */
+export function deserializeFilterFromQueryParams(params: URLSearchParams | Record<string, string | string[]>): Partial<FilterState> {
+  const getParam = (key: string): string | null => {
+    if (params instanceof URLSearchParams) return params.get(key);
+    const val = params[key];
+    return Array.isArray(val) ? val[0] : val ?? null;
+  };
+
+  const result: Partial<FilterState> = {};
+  const period = getParam("period") as PeriodPreset | null;
+  if (period) result.preset = period;
+
+  const start = getParam("start");
+  if (start) result.startDate = start;
+
+  const end = getParam("end");
+  if (end) result.endDate = end;
+
+  const accFilter = getParam("account_filter") as AccountFilterMode | null;
+  if (accFilter) result.accountFilter = accFilter;
+
+  if (params instanceof URLSearchParams) {
+    const accs = params.getAll("accounts[]");
+    if (accs.length > 0) result.selectedAccountIds = accs;
+  } else if ("accounts[]" in params) {
+    const accs = params["accounts[]"];
+    result.selectedAccountIds = Array.isArray(accs) ? accs : [accs];
+  }
+
+  return result;
+}
+
+// ============================================================================
+// 8. R6: Desktop PEMDAS Math Evaluator Specification Contract
+// ============================================================================
+
+export type MathToken =
+  | { type: "number"; value: Decimal }
+  | { type: "operator"; op: "+" | "-" | "*" | "/" }
+  | { type: "left_paren" }
+  | { type: "right_paren" };
+
+export function tokenizeMathExpression(expr: string): MathToken[] {
+  const cleaned = expr.trim();
+  if (!cleaned) return [];
+
+  const tokens: MathToken[] = [];
+  let i = 0;
+
+  while (i < cleaned.length) {
+    const char = cleaned[i];
+
+    if (/\s/.test(char)) {
+      i++;
+      continue;
+    }
+
+    if (char === "(") {
+      tokens.push({ type: "left_paren" });
+      i++;
+      continue;
+    }
+
+    if (char === ")") {
+      tokens.push({ type: "right_paren" });
+      i++;
+      continue;
+    }
+
+    if (char === "+" || char === "-" || char === "*" || char === "/") {
+      // Check for unary minus:
+      // A minus is unary if it is at the start of expression or preceded by operator or left paren
+      const prevToken = tokens[tokens.length - 1];
+      const isUnaryMinus =
+        char === "-" &&
+        (!prevToken || prevToken.type === "operator" || prevToken.type === "left_paren");
+
+      if (isUnaryMinus) {
+        // Read the number following the unary minus
+        let numStr = "-";
+        i++;
+        while (i < cleaned.length && /\s/.test(cleaned[i])) i++;
+        while (i < cleaned.length && /[\d.]/.test(cleaned[i])) {
+          numStr += cleaned[i];
+          i++;
+        }
+        if (numStr === "-") {
+          // Unary minus with no number
+          continue;
+        }
+        try {
+          tokens.push({ type: "number", value: new Decimal(numStr) });
+        } catch {
+          // Malformed number
+        }
+        continue;
+      }
+
+      tokens.push({ type: "operator", op: char });
+      i++;
+      continue;
+    }
+
+    if (/[\d.]/.test(char)) {
+      let numStr = "";
+      while (i < cleaned.length && /[\d.]/.test(cleaned[i])) {
+        numStr += cleaned[i];
+        i++;
+      }
+      try {
+        tokens.push({ type: "number", value: new Decimal(numStr) });
+      } catch {
+        // Ignore malformed token
+      }
+      continue;
+    }
+
+    // Skip any non-math character
+    i++;
+  }
+
+  return tokens;
+}
+
+/**
+ * Evaluates math expression using standard Shunting Yard + RPN evaluation with Decimal.js
+ * Respects PEMDAS: Parentheses, Multiplication/Division, Addition/Subtraction
+ */
+export function evaluateMathExpression(expr: string): string {
+  if (!expr || !expr.trim()) return "0";
+
+  try {
+    const tokens = tokenizeMathExpression(expr);
+    if (tokens.length === 0) return "0";
+
+    // Clean up trailing operators if user is still typing (e.g. "150 +")
+    while (tokens.length > 0 && tokens[tokens.length - 1].type === "operator") {
+      tokens.pop();
+    }
+    if (tokens.length === 0) return "0";
+
+    // Convert infix tokens to postfix (RPN) via Shunting Yard
+    const outputQueue: MathToken[] = [];
+    const operatorStack: MathToken[] = [];
+
+    const precedence: Record<string, number> = {
+      "+": 1,
+      "-": 1,
+      "*": 2,
+      "/": 2,
+    };
+
+    for (const token of tokens) {
+      if (token.type === "number") {
+        outputQueue.push(token);
+      } else if (token.type === "operator") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1].type === "operator" &&
+          precedence[(operatorStack[operatorStack.length - 1] as Extract<MathToken, { type: "operator" }>).op] >= precedence[token.op]
+        ) {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        operatorStack.push(token);
+      } else if (token.type === "left_paren") {
+        operatorStack.push(token);
+      } else if (token.type === "right_paren") {
+        while (
+          operatorStack.length > 0 &&
+          operatorStack[operatorStack.length - 1].type !== "left_paren"
+        ) {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        if (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].type === "left_paren") {
+          operatorStack.pop(); // Discard '('
+        }
+      }
+    }
+
+    while (operatorStack.length > 0) {
+      const top = operatorStack.pop()!;
+      if (top.type !== "left_paren" && top.type !== "right_paren") {
+        outputQueue.push(top);
+      }
+    }
+
+    if (outputQueue.length === 0) return "0";
+
+    // Evaluate RPN
+    const evalStack: Decimal[] = [];
+
+    for (const token of outputQueue) {
+      if (token.type === "number") {
+        evalStack.push(token.value);
+      } else if (token.type === "operator") {
+        if (evalStack.length < 2) continue;
+        const b = evalStack.pop()!;
+        const a = evalStack.pop()!;
+        let res: Decimal;
+
+        switch (token.op) {
+          case "+":
+            res = a.plus(b);
+            break;
+          case "-":
+            res = a.minus(b);
+            break;
+          case "*":
+            res = a.mul(b);
+            break;
+          case "/":
+            if (b.isZero()) {
+              // Division by zero: fall back to a or return 0
+              res = new Decimal(0);
+            } else {
+              res = a.div(b);
+            }
+            break;
+          default:
+            res = new Decimal(0);
+        }
+        evalStack.push(res);
+      }
+    }
+
+    if (evalStack.length === 0) return "0";
+    const finalVal = evalStack[0];
+
+    // Clamping to 0 if negative, formatted cleanly
+    if (finalVal.isNegative()) return "0";
+
+    // Return clean string with up to 10 significant digits
+    return finalVal.toSignificantDigits(10).toString();
+  } catch {
+    return "0";
+  }
+}
+
+/**
+ * Apply quick denomination chip (+10, +50, +100) to current expression or amount
+ */
+export function applyDenominationChip(currentExpr: string, delta: number): string {
+  const currentVal = new Decimal(evaluateMathExpression(currentExpr));
+  const nextVal = currentVal.plus(delta);
+  return nextVal.isNegative() ? "0" : nextVal.toString();
+}
+
+// ============================================================================
+// 9. R7: BudgetBakers Reports Aggregations Specification Contract
+// ============================================================================
+
+export interface BalanceTrendResult {
+  currentTotal: Decimal;
+  previousTotal: Decimal;
+  difference: Decimal;
+  percentageChange: number;
+  trend: "up" | "down" | "flat";
+}
+
+export function computeBalanceTrend(params: {
+  currentTotal: Decimal | number | string;
+  previousTotal: Decimal | number | string;
+}): BalanceTrendResult {
+  const cur = new Decimal(params.currentTotal || 0);
+  const prev = new Decimal(params.previousTotal || 0);
+  const diff = cur.minus(prev);
+
+  let pctChange = 0;
+  if (!prev.isZero()) {
+    pctChange = diff.div(prev.abs()).mul(100).toDecimalPlaces(2).toNumber();
+  } else if (!cur.isZero()) {
+    pctChange = cur.isPositive() ? 100 : -100;
+  }
+
+  const trend: "up" | "down" | "flat" = diff.gt(0) ? "up" : diff.lt(0) ? "down" : "flat";
+
+  return {
+    currentTotal: cur,
+    previousTotal: prev,
+    difference: diff,
+    percentageChange: pctChange,
+    trend,
+  };
+}
+
+export interface CashFlowKpis {
+  inflow: Decimal;
+  outflow: Decimal;
+  netSaved: Decimal;
+  savingsRatePercent: number;
+}
+
+export function computeCashFlowKpis(
+  transactions: Array<{ type: string; amount: string | number; destination_id?: string; source_id?: string }>,
+): CashFlowKpis {
+  let inflow = new Decimal(0);
+  let outflow = new Decimal(0);
+
+  for (const tx of transactions) {
+    const amt = new Decimal(tx.amount || 0).abs();
+    if (tx.type === "deposit" || tx.type === "opening balance") {
+      inflow = inflow.plus(amt);
+    } else if (tx.type === "withdrawal") {
+      outflow = outflow.plus(amt);
+    }
+  }
+
+  const netSaved = inflow.minus(outflow);
+  let savingsRatePercent = 0;
+  if (inflow.gt(0)) {
+    savingsRatePercent = netSaved.div(inflow).mul(100).toDecimalPlaces(2).toNumber();
+  }
+
+  return {
+    inflow,
+    outflow,
+    netSaved,
+    savingsRatePercent,
+  };
+}
+
+export interface SpendingCategoryItem {
+  name: string;
+  amount: Decimal;
+  percentage: number;
+}
+
+export interface SpendingBreakdownResult {
+  categories: SpendingCategoryItem[];
+  totalSpend: Decimal;
+  dailyAverage: Decimal;
+}
+
+export function computeSpendingBreakdown(params: {
+  expenses: Array<{ category?: string; amount: string | number }>;
+  periodDays: number;
+}): SpendingBreakdownResult {
+  const { expenses, periodDays } = params;
+  const map = new Map<string, Decimal>();
+  let totalSpend = new Decimal(0);
+
+  for (const exp of expenses) {
+    const cat = exp.category?.trim() || "Uncategorized";
+    const amt = new Decimal(exp.amount || 0).abs();
+    totalSpend = totalSpend.plus(amt);
+    const existing = map.get(cat) || new Decimal(0);
+    map.set(cat, existing.plus(amt));
+  }
+
+  const categories: SpendingCategoryItem[] = [];
+  for (const [name, amt] of map.entries()) {
+    const percentage = totalSpend.gt(0)
+      ? amt.div(totalSpend).mul(100).toDecimalPlaces(2).toNumber()
+      : 0;
+    categories.push({ name, amount: amt, percentage });
+  }
+
+  // Sort descending by amount
+  categories.sort((a, b) => (b.amount.gt(a.amount) ? 1 : b.amount.lt(a.amount) ? -1 : 0));
+
+  const days = Math.max(1, periodDays);
+  const dailyAverage = totalSpend.div(days).toDecimalPlaces(2);
+
+  return {
+    categories,
+    totalSpend,
+    dailyAverage,
+  };
+}
+
+export interface RecurrenceConfig {
+  name: string;
+  amount: Decimal | number | string;
+  type: "income" | "expense";
+  cadence: "daily" | "weekly" | "monthly";
+  dayOfWeek?: number; // 0 = Sun, 6 = Sat
+  dayOfMonth?: number; // 1-31
+}
+
+export interface UnpaidBillConfig {
+  name: string;
+  amount: Decimal | number | string;
+  dueDate: string; // YYYY-MM-DD
+}
+
+export interface DailyProjection {
+  date: string;
+  balance: Decimal;
+}
+
+export interface OutlookProjectionResult {
+  dailyBalances: DailyProjection[];
+  minBalance: Decimal;
+  minBalanceDate: string;
+  endingBalance: Decimal;
+}
+
+export function project30DayCashOutlook(params: {
+  startingBalance: Decimal | number | string;
+  startDate: string;
+  recurrences: RecurrenceConfig[];
+  unpaidBills: UnpaidBillConfig[];
+}): OutlookProjectionResult {
+  const { startingBalance, startDate, recurrences, unpaidBills } = params;
+  let running = new Decimal(startingBalance || 0);
+  const dailyBalances: DailyProjection[] = [];
+
+  let minBalance = running;
+  let minBalanceDate = startDate;
+
+  const baseDate = parseIsoDateUtc(startDate);
+
+  for (let dayOffset = 1; dayOffset <= 30; dayOffset++) {
+    const targetDate = new Date(
+      Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate() + dayOffset),
+    );
+    const targetDateStr = formatIsoDateUtc(targetDate);
+    const dayOfWeek = targetDate.getUTCDay();
+    const dayOfMonth = targetDate.getUTCDate();
+
+    // 1. Process recurrences
+    for (const rec of recurrences) {
+      let matches = false;
+      if (rec.cadence === "daily") {
+        matches = true;
+      } else if (rec.cadence === "weekly" && rec.dayOfWeek === dayOfWeek) {
+        matches = true;
+      } else if (rec.cadence === "monthly" && rec.dayOfMonth === dayOfMonth) {
+        matches = true;
+      }
+
+      if (matches) {
+        const amt = new Decimal(rec.amount || 0).abs();
+        if (rec.type === "income") {
+          running = running.plus(amt);
+        } else {
+          running = running.minus(amt);
+        }
+      }
+    }
+
+    // 2. Process unpaid bills matching this date
+    for (const bill of unpaidBills) {
+      if (bill.dueDate === targetDateStr) {
+        const amt = new Decimal(bill.amount || 0).abs();
+        running = running.minus(amt);
+      }
+    }
+
+    dailyBalances.push({
+      date: targetDateStr,
+      balance: running,
+    });
+
+    if (running.lt(minBalance)) {
+      minBalance = running;
+      minBalanceDate = targetDateStr;
+    }
+  }
+
+  return {
+    dailyBalances,
+    minBalance,
+    minBalanceDate,
+    endingBalance: running,
+  };
+}
+
+export interface CreditDebtGaugeResult {
+  totalDebt: Decimal;
+  creditCardDebt: Decimal;
+  totalCreditLimit: Decimal;
+  utilizationPercent: number;
+  riskLevel: "healthy" | "moderate" | "high";
+}
+
+export function computeCreditDebtGauge(
+  accounts: Array<{
+    type?: string;
+    liability_type?: string;
+    current_balance?: string | number;
+    credit_limit?: string | number;
+  }>,
+): CreditDebtGaugeResult {
+  let totalDebt = new Decimal(0);
+  let creditCardDebt = new Decimal(0);
+  let totalCreditLimit = new Decimal(0);
+
+  for (const acc of accounts) {
+    const bal = new Decimal(acc.current_balance || 0).abs();
+    const limit = new Decimal(acc.credit_limit || 0).abs();
+
+    if (acc.type === "liability") {
+      totalDebt = totalDebt.plus(bal);
+      if (acc.liability_type === "credit_card" || acc.liability_type === "credit card") {
+        creditCardDebt = creditCardDebt.plus(bal);
+        totalCreditLimit = totalCreditLimit.plus(limit);
+      }
+    }
+  }
+
+  let utilizationPercent = 0;
+  if (totalCreditLimit.gt(0)) {
+    utilizationPercent = creditCardDebt.div(totalCreditLimit).mul(100).toDecimalPlaces(2).toNumber();
+  }
+
+  let riskLevel: "healthy" | "moderate" | "high" = "healthy";
+  if (utilizationPercent > 50) {
+    riskLevel = "high";
+  } else if (utilizationPercent >= 30) {
+    riskLevel = "moderate";
+  }
+
+  return {
+    totalDebt,
+    creditCardDebt,
+    totalCreditLimit,
+    utilizationPercent,
+    riskLevel,
+  };
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
+  BarChart3,
   ChevronDown,
   FolderTree,
   LayoutDashboard,
@@ -20,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UniversalFilterProvider } from "@/lib/filter-context";
 import { SpeedDialFab } from "@/components/speed-dial-fab";
 import { MagicChatbar } from "@/components/magic-chatbar";
 import { useTheme } from "@/components/theme-provider";
@@ -77,6 +79,20 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    key: "reports",
+    href: "/reports",
+    label: "Statistics & Reports",
+    icon: BarChart3,
+    matchPrefixes: ["/reports"],
+    children: [
+      { href: "/reports?tab=balance", label: "Balance & Net Worth", matchPath: "/reports", matchQuery: { tab: "balance" } },
+      { href: "/reports?tab=cash-flow", label: "Cash-flow", matchPath: "/reports", matchQuery: { tab: "cash-flow" } },
+      { href: "/reports?tab=spending", label: "Spending & Categories", matchPath: "/reports", matchQuery: { tab: "spending" } },
+      { href: "/reports?tab=outlook", label: "30-Day Outlook", matchPath: "/reports", matchQuery: { tab: "outlook" } },
+      { href: "/reports?tab=debt", label: "Credit & Debt", matchPath: "/reports", matchQuery: { tab: "debt" } },
+    ],
+  },
+  {
     key: "automation",
     href: "/rules?tab=rules",
     label: "Automation",
@@ -120,8 +136,8 @@ const MOBILE_NAV = [
   { href: "/", label: "Home", icon: LayoutDashboard, match: "/" },
   { href: "/accounts", label: "Accounts", icon: Wallet, match: "/accounts" },
   { href: "/transactions", label: "Records", icon: List, match: "/transactions" },
+  { href: "/reports", label: "Reports", icon: BarChart3, match: "/reports" },
   { href: "/budgets", label: "Budgets", icon: PieChart, match: "/budgets" },
-  { href: "/rules", label: "Auto", icon: Wand2, match: "/rules" },
 ];
 
 function isGroupActive(pathname: string, group: NavGroup) {
@@ -247,7 +263,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function AppShell({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
+function AppShellInner({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -261,7 +277,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
   const themeTitle = `Theme: ${currentLabel} (click for ${nextLabel})`;
   const themeAriaLabel = `Current theme: ${currentLabel}. Switch to ${nextLabel} theme`;
 
-  // Keyboard shortcuts: N = new expense, T = transfer, I = income, / = search transactions (ignored while typing).
+  // Keyboard shortcuts: N = new expense, T = transfer, I = income, S = reports, / = search transactions (ignored while typing).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement;
@@ -270,6 +286,7 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
       if (e.key === "n") router.push("/new?type=withdrawal");
       if (e.key === "t") router.push("/new?type=transfer");
       if (e.key === "i") router.push("/new?type=deposit");
+      if (e.key === "s" || e.key === "S") router.push("/reports");
       if (e.key === "/") {
         e.preventDefault();
         router.push("/transactions");
@@ -290,6 +307,14 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
           Wallet
         </Link>
         <div className="flex items-center gap-1.5">
+          <Link
+            href="/reports"
+            aria-label="Statistics & Reports"
+            title="Statistics & Reports"
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
+          >
+            <BarChart3 className="size-4" aria-hidden />
+          </Link>
           <button
             type="button"
             onClick={cycleTheme}
@@ -397,6 +422,9 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
             <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
               <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
             </Link>
+            <Link href="/reports" className="inline-flex items-center gap-1 hover:text-fg">
+              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">S</kbd> Reports
+            </Link>
           </div>
           {children}
         </div>
@@ -432,5 +460,13 @@ export function AppShell({ children, serverUrl }: { children: React.ReactNode; s
         })}
       </nav>
     </div>
+  );
+}
+
+export function AppShell({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
+  return (
+    <UniversalFilterProvider>
+      <AppShellInner serverUrl={serverUrl}>{children}</AppShellInner>
+    </UniversalFilterProvider>
   );
 }

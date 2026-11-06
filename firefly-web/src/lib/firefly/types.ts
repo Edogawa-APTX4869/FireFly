@@ -48,6 +48,10 @@ export interface Account {
   account_number?: string | null;
   include_net_worth?: boolean;
   liability_type?: string | null;
+  liability_amount?: string | null;
+  liability_direction?: string | null;
+  interest?: string | null;
+  interest_period?: string | null;
   notes?: string | null;
   order?: number | null;
   object_group_title?: string | null;
@@ -377,4 +381,26 @@ export interface PiggyBank {
   notes?: string | null;
 }
 
+export interface InsightEntry {
+  id: string;
+  name: string;
+  difference: string;
+  difference_float: number;
+  currency_id?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  currency_decimal_places?: number;
+  value?: string;
+  value_float?: number;
+  asset_account_id?: string | null;
+  asset_account_name?: string | null;
+}
 
+export interface InsightTotalEntry {
+  difference: string;
+  difference_float: number;
+  currency_id?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  currency_decimal_places?: number;
+}
