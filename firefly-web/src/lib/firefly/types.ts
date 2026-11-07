@@ -92,6 +92,8 @@ export interface TransactionSplit {
   budget_name?: string | null;
   tags?: string[] | null;
   notes?: string | null;
+  bill_id?: string | null;
+  bill_name?: string | null;
 }
 
 export interface TransactionGroup {
@@ -212,6 +214,8 @@ export interface NewSplit {
   budget_id?: string;
   tags?: string[];
   notes?: string;
+  bill_id?: string | null;
+  bill_name?: string | null;
 }
 
 export type RuleMoment = "store-journal" | "update-journal" | "manual-activation";

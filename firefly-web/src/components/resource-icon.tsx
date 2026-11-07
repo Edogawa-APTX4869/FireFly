@@ -263,7 +263,7 @@ export function ResourceIconBadge({
   size = "md",
   editable = true,
 }: {
-  entityType: "account" | "category" | "budget" | "tag" | "piggy" | "template";
+  entityType: "account" | "category" | "budget" | "tag" | "piggy" | "template" | "bill";
   entityId: string;
   defaultIcon?: string;
   defaultColor?: string;

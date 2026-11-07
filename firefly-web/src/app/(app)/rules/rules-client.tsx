@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
+  CreditCard,
+  ExternalLink,
   Eye,
   FolderPlus,
   Pencil,
@@ -15,10 +17,13 @@ import {
   Trash2,
   Wand2,
   X,
+  Zap,
 } from "lucide-react";
 import { api } from "@/lib/firefly/api";
 import type {
+  Account,
   Bill,
+  Budget,
   Category,
   Recurrence,
   Resource,
@@ -30,6 +35,13 @@ import type {
 } from "@/lib/firefly/types";
 import { ASSET_LIKE, useAccounts, useCurrencies, usePrimaryCurrency } from "@/lib/hooks";
 import { cn, formatDate, isoDate, monthRange, parseAmount } from "@/lib/utils";
+import {
+  buildBillRulePayload,
+  buildNewTransactionUrlForBill,
+  buildQuickPaySplit,
+  findMatchingRuleForBill,
+} from "@/lib/bill-automation";
+import { ResourceIconBadge } from "@/components/resource-icon";
 import { CategoryCascadeSelect } from "@/components/category-cascade";
 import { TransactionRow } from "@/components/transaction-row";
 import {
@@ -42,6 +54,7 @@ import {
   ErrorBox,
   Field,
   Input,
+  ModalSheet,
   Money,
   PageHeader,
   Select,
@@ -1175,13 +1188,475 @@ function RecurrencesSection() {
 // 3. BILLS & SUBSCRIPTIONS
 // ============================================================================
 
+function QuickPayModal({
+  bill,
+  onClose,
+  accounts,
+  categories,
+}: {
+  bill: Resource<Bill>;
+  onClose: () => void;
+  accounts: Resource<Account>[];
+  categories: Resource<Category>[];
+}) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const router = useRouter();
+
+  const a = bill.attributes;
+  const initialAmount = a.amount_min || a.amount_max || "";
+
+  const [amount, setAmount] = useState(initialAmount);
+  const [sourceId, setSourceId] = useState(accounts[0]?.id || "");
+  const [date, setDate] = useState(isoDate());
+  const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const payMut = useMutation({
+    mutationFn: async () => {
+      const cleanAmt = parseAmount(amount);
+      if (!cleanAmt) throw new Error("Please enter a valid amount.");
+      if (!sourceId) throw new Error("Please select an asset account to pay from.");
+
+      const split = buildQuickPaySplit({
+        billId: bill.id,
+        billName: bill.attributes.name,
+        amount: cleanAmt,
+        currencyCode: bill.attributes.currency_code,
+        sourceAccountId: sourceId,
+        date,
+        category: category || undefined,
+        notes: notes || undefined,
+      });
+
+      return api.createTransaction([split]);
+    },
+    onSuccess: () => {
+      toast(`Payment of ${amount} ${bill.attributes.currency_code ?? ""} recorded!`);
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["summary"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      onClose();
+    },
+    onError: (e) => toast((e as Error).message, "error"),
+  });
+
+  const minAmt = a.amount_min;
+  const maxAmt = a.amount_max;
+  const hasRange = minAmt && maxAmt && minAmt !== maxAmt;
+
+  const handleAdjustAmount = (delta: number) => {
+    const cur = parseFloat(amount) || 0;
+    const next = Math.max(0, cur + delta);
+    setAmount(next.toFixed(a.currency_decimal_places ?? 2));
+  };
+
+  const handleOpenFullForm = () => {
+    const url = buildNewTransactionUrlForBill({
+      billId: bill.id,
+      billName: bill.attributes.name,
+      amount: amount || minAmt || "0",
+      currencyCode: bill.attributes.currency_code,
+      sourceId: sourceId || undefined,
+      category: category || undefined,
+    });
+    router.push(url);
+    onClose();
+  };
+
+  return (
+    <ModalSheet
+      open
+      onClose={onClose}
+      title={
+        <div className="flex items-center gap-2">
+          <CreditCard className="size-5 text-primary" />
+          <span>Quick Pay · {bill.attributes.name}</span>
+        </div>
+      }
+      subtitle={`Record payment for ${bill.attributes.name} (${bill.attributes.repeat_freq})`}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          payMut.mutate();
+        }}
+        className="flex flex-col gap-4"
+      >
+        <div className="flex items-center justify-between rounded-xl bg-surface-2 p-3 text-xs text-muted">
+          <span>Expected amount:</span>
+          <span className="font-semibold text-foreground">
+            <Money amount={a.amount_min ?? "0"} code={a.currency_code} decimals={a.currency_decimal_places} />
+            {hasRange && (
+              <>
+                {" – "}
+                <Money amount={a.amount_max ?? "0"} code={a.currency_code} decimals={a.currency_decimal_places} />
+              </>
+            )}
+          </span>
+        </div>
+
+        <Field label="Amount to Pay">
+          {(id) => (
+            <div className="flex flex-col gap-2">
+              <Input
+                id={id}
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.000"
+                required
+                autoFocus
+              />
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                <span className="text-muted">Presets:</span>
+                {minAmt && (
+                  <button
+                    type="button"
+                    onClick={() => setAmount(minAmt)}
+                    className="rounded-md bg-surface-2 px-2 py-0.5 font-medium hover:bg-surface-3 transition cursor-pointer"
+                  >
+                    {hasRange ? `Min (${minAmt})` : "Exact"}
+                  </button>
+                )}
+                {hasRange && maxAmt && (
+                  <button
+                    type="button"
+                    onClick={() => setAmount(maxAmt)}
+                    className="rounded-md bg-surface-2 px-2 py-0.5 font-medium hover:bg-surface-3 transition cursor-pointer"
+                  >
+                    Max ({maxAmt})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleAdjustAmount(1)}
+                  className="rounded-md bg-surface-2 px-2 py-0.5 font-medium hover:bg-surface-3 transition cursor-pointer"
+                >
+                  +1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustAmount(5)}
+                  className="rounded-md bg-surface-2 px-2 py-0.5 font-medium hover:bg-surface-3 transition cursor-pointer"
+                >
+                  +5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdjustAmount(10)}
+                  className="rounded-md bg-surface-2 px-2 py-0.5 font-medium hover:bg-surface-3 transition cursor-pointer"
+                >
+                  +10
+                </button>
+              </div>
+            </div>
+          )}
+        </Field>
+
+        <Field label="Pay From Account">
+          {(id) => (
+            <Select id={id} value={sourceId} onChange={(e) => setSourceId(e.target.value)} required>
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.attributes.name}
+                  {acc.attributes.current_balance
+                    ? ` (${acc.attributes.currency_code ?? ""} ${acc.attributes.current_balance})`
+                    : ""}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Payment Date">
+            {(id) => <Input id={id} type="date" value={date} onChange={(e) => setDate(e.target.value)} required />}
+          </Field>
+          <Field label="Category (optional)">
+            {(id) => (
+              <Select id={id} value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">No category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.attributes.name}>
+                    {c.attributes.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        </div>
+
+        <Field label="Notes / Reference (optional)">
+          {(id) => (
+            <Input
+              id={id}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Reference #, Invoice ID"
+            />
+          )}
+        </Field>
+
+        <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handleOpenFullForm}
+            className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline py-1 cursor-pointer"
+          >
+            <ExternalLink className="size-3.5" /> Open in full transaction form
+          </button>
+          <div className="flex w-full sm:w-auto items-center justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={payMut.isPending} className="gap-1.5">
+              <Zap className="size-4" /> Record Payment
+            </Button>
+          </div>
+        </div>
+      </form>
+    </ModalSheet>
+  );
+}
+
+function CreateBillRuleModal({
+  bill,
+  existingRule,
+  ruleGroups,
+  categories,
+  budgets,
+  onClose,
+}: {
+  bill: Resource<Bill>;
+  existingRule?: Resource<Rule>;
+  ruleGroups: Resource<RuleGroup>[];
+  categories: Resource<Category>[];
+  budgets: Resource<Budget>[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const toast = useToast();
+
+  const b = bill.attributes;
+  const [title, setTitle] = useState(existingRule?.attributes.title || `Auto-match bill: ${b.name}`);
+  const [keyword, setKeyword] = useState(existingRule?.attributes.triggers?.[0]?.value || b.name);
+  const [matchType, setMatchType] = useState<"description_contains" | "description_is" | "description_starts">(
+    (existingRule?.attributes.triggers?.[0]?.type as "description_contains" | "description_is" | "description_starts") || "description_contains"
+  );
+  const [ruleGroupId, setRuleGroupId] = useState(
+    existingRule?.attributes.rule_group_id ||
+      ruleGroups.find((g) => /bill|subscription/i.test(g.attributes.title))?.id ||
+      ruleGroups[0]?.id ||
+      ""
+  );
+  const [category, setCategory] = useState(
+    existingRule?.attributes.actions?.find((a) => a.type === "set_category")?.value || ""
+  );
+  const [budgetId, setBudgetId] = useState(
+    existingRule?.attributes.actions?.find((a) => a.type === "set_budget")?.value || ""
+  );
+  const [tag, setTag] = useState(
+    existingRule?.attributes.actions?.find((a) => a.type === "add_tag")?.value || ""
+  );
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!keyword.trim()) throw new Error("Please enter a match keyword.");
+
+      let targetGroupId = ruleGroupId;
+      if (!targetGroupId) {
+        // Find or create "Bills & Subscriptions" group
+        const existingBillsGroup = ruleGroups.find((g) => /bill|subscription/i.test(g.attributes.title));
+        if (existingBillsGroup) {
+          targetGroupId = existingBillsGroup.id;
+        } else {
+          const newGroup = await api.createRuleGroup("Bills & Subscriptions");
+          targetGroupId = String(newGroup.data.id);
+        }
+      }
+
+      const payload = buildBillRulePayload({
+        billName: bill.attributes.name,
+        ruleGroupId: targetGroupId,
+        title: title.trim() || `Auto-match bill: ${bill.attributes.name}`,
+        keyword: keyword.trim(),
+        matchType,
+        category: category || undefined,
+        budgetId: budgetId || undefined,
+        tag: tag || undefined,
+      });
+
+      if (existingRule) {
+        return api.updateRule(existingRule.id, payload);
+      } else {
+        return api.createRule(payload);
+      }
+    },
+    onSuccess: () => {
+      toast(existingRule ? `Automated rule for ${bill.attributes.name} updated!` : `Automated rule for ${bill.attributes.name} created!`);
+      qc.invalidateQueries({ queryKey: ["rules"] });
+      qc.invalidateQueries({ queryKey: ["rule-groups"] });
+      onClose();
+    },
+    onError: (e) => toast((e as Error).message, "error"),
+  });
+
+  return (
+    <ModalSheet
+      open
+      onClose={onClose}
+      title={
+        <div className="flex items-center gap-2">
+          <Wand2 className="size-5 text-primary" />
+          <span>{existingRule ? "Edit Automated Rule" : "Create Automated Rule"} · {bill.attributes.name}</span>
+        </div>
+      }
+      subtitle="Automatically link matching bank transactions to this subscription"
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          saveMut.mutate();
+        }}
+        className="flex flex-col gap-4"
+      >
+        <div className="rounded-xl bg-surface-2 p-3 text-xs text-muted flex flex-col gap-1.5">
+          <span className="font-semibold text-foreground">How this works:</span>
+          <span>When any incoming bank sync or recorded transaction matches the rule, Firefly III will automatically attach it to <strong>{bill.attributes.name}</strong> and mark this bill period as paid.</span>
+        </div>
+
+        <Field label="Rule Title">
+          {(id) => (
+            <Input
+              id={id}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={`Auto-match bill: ${bill.attributes.name}`}
+              required
+            />
+          )}
+        </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Match Keyword">
+            {(id) => (
+              <Input
+                id={id}
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="e.g. Netflix, AWS, Batelco"
+                required
+              />
+            )}
+          </Field>
+          <Field label="Condition">
+            {(id) => (
+              <Select
+                id={id}
+                value={matchType}
+                onChange={(e) => setMatchType(e.target.value as "description_contains" | "description_is" | "description_starts")}
+              >
+                <option value="description_contains">Description contains</option>
+                <option value="description_is">Description is exactly</option>
+                <option value="description_starts">Description starts with</option>
+              </Select>
+            )}
+          </Field>
+        </div>
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-primary">
+            <CheckCircle2 className="size-4 shrink-0" />
+            <span>Automatic Action: Link transaction to <strong>{bill.attributes.name}</strong></span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Set Category (optional)">
+            {(id) => (
+              <Select id={id} value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">No category action</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.attributes.name}>
+                    {c.attributes.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Set Budget (optional)">
+            {(id) => (
+              <Select id={id} value={budgetId} onChange={(e) => setBudgetId(e.target.value)}>
+                <option value="">No budget action</option>
+                {budgets.map((b) => (
+                  <option key={b.id} value={b.attributes.name}>
+                    {b.attributes.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Add Tag (optional)">
+            {(id) => (
+              <Input
+                id={id}
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="e.g. Subscription, Recurring"
+              />
+            )}
+          </Field>
+          <Field label="Rule Group">
+            {(id) => (
+              <Select id={id} value={ruleGroupId} onChange={(e) => setRuleGroupId(e.target.value)}>
+                {ruleGroups.length === 0 ? (
+                  <option value="">(Auto-create Bills & Subscriptions group)</option>
+                ) : (
+                  ruleGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.attributes.title}
+                    </option>
+                  ))
+                )}
+              </Select>
+            )}
+          </Field>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={saveMut.isPending} className="gap-1.5">
+            <Wand2 className="size-4" /> {existingRule ? "Update Rule" : "Create Auto-Rule"}
+          </Button>
+        </div>
+      </form>
+    </ModalSheet>
+  );
+}
+
 function BillsSection() {
   const qc = useQueryClient();
   const toast = useToast();
   const month = useMemo(() => monthRange(0), []);
   const billsQ = useQuery({ queryKey: ["bills", month.start, month.end], queryFn: () => api.bills(month.start, month.end) });
+  const rulesQ = useQuery({ queryKey: ["rules"], queryFn: api.rules });
+  const ruleGroupsQ = useQuery({ queryKey: ["rule-groups"], queryFn: api.ruleGroups });
+  const categoriesQ = useQuery({ queryKey: ["categories-list"], queryFn: () => api.categories(), staleTime: 5 * 60_000 });
+  const budgetsQ = useQuery({ queryKey: ["budgets-list"], queryFn: () => api.budgets(month.start, month.end), staleTime: 5 * 60_000 });
+  const accountsQ = useAccounts("asset");
   const currenciesQ = useCurrencies();
   const primaryQ = usePrimaryCurrency();
+
+  const [payingBill, setPayingBill] = useState<Resource<Bill> | null>(null);
+  const [rulingBill, setRulingBill] = useState<Resource<Bill> | null>(null);
 
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState("");
@@ -1220,28 +1695,13 @@ function BillsSection() {
           const g = await api.createRuleGroup("Bills & Subscriptions");
           groupId = g.data.id;
         }
-        await api.createRule({
-          title: `Auto-match bill: ${name.trim()}`,
-          rule_group_id: String(groupId),
-          trigger: "store-journal",
-          strict: true,
-          stop_processing: false,
-          active: true,
-          triggers: [
-            {
-              type: "description_contains",
-              value: (matchKeyword.trim() || name.trim()),
-              active: true,
-            },
-          ],
-          actions: [
-            {
-              type: "link_to_bill",
-              value: name.trim(),
-              active: true,
-            },
-          ],
-        });
+        await api.createRule(
+          buildBillRulePayload({
+            billName: name.trim(),
+            ruleGroupId: String(groupId),
+            keyword: matchKeyword.trim() || name.trim(),
+          })
+        );
       }
       return billRes;
     },
@@ -1268,10 +1728,21 @@ function BillsSection() {
   });
 
   const items = billsQ.data ?? [];
+  const rulesList = rulesQ.data ?? [];
+  const assetAccounts = accountsQ.data ?? [];
+  const categoriesList = categoriesQ.data ?? [];
+  const budgetsList = budgetsQ.data ?? [];
+  const groupsList = ruleGroupsQ.data ?? [];
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Tracked Bills & Subscriptions</h2>
+          <p className="text-xs text-muted">
+            Manage recurring commitments, quick-pay upcoming bills, and configure auto-matching rules
+          </p>
+        </div>
         <Button size="sm" onClick={() => setShowNew((s) => !s)}>
           <Plus className="size-4" aria-hidden /> New Bill / Subscription
         </Button>
@@ -1367,33 +1838,83 @@ function BillsSection() {
             {items.map((b: Resource<Bill>) => {
               const a = b.attributes;
               const paidThisPeriod = (a.paid_dates?.length ?? 0) > 0;
+              const matchingRule = findMatchingRuleForBill(rulesList, a.name);
+
               return (
-                <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{a.name}</span>
-                      <Badge tone={paidThisPeriod ? "success" : "warning"}>
-                        {paidThisPeriod ? "Paid this period" : "Unpaid / Upcoming"}
-                      </Badge>
-                      <Badge tone="neutral">{a.repeat_freq}</Badge>
+                <li
+                  key={b.id}
+                  className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-surface-2/40 -mx-4 px-4 rounded-xl"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <ResourceIconBadge entityType="bill" entityId={b.id} defaultIcon="Sparkles" />
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-base truncate">{a.name}</span>
+                        <Badge tone={paidThisPeriod ? "success" : "warning"}>
+                          {paidThisPeriod ? "Paid this period" : "Unpaid / Upcoming"}
+                        </Badge>
+                        <Badge tone="neutral">{a.repeat_freq}</Badge>
+                        {matchingRule ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                            title={`Linked rule: "${matchingRule.attributes.title}"`}
+                          >
+                            <CheckCircle2 className="size-3" /> Auto-rule active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                            No auto-rule
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted">
+                        {a.next_expected_match ? `Next expected: ${formatDate(a.next_expected_match)}` : `Started ${formatDate(a.date)}`}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted">
-                      {a.next_expected_match ? `Next expected: ${formatDate(a.next_expected_match)}` : `Started ${formatDate(a.date)}`}
-                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">
-                      <Money amount={a.amount_min} code={a.currency_code} decimals={a.currency_decimal_places} />
-                      {a.amount_max !== a.amount_min && (
-                        <>
-                          {" – "}
-                          <Money amount={a.amount_max} code={a.currency_code} decimals={a.currency_decimal_places} />
-                        </>
-                      )}
-                    </span>
-                    <Button variant="ghost" size="icon" onClick={() => delMut.mutate(b.id)} aria-label={`Delete ${a.name}`}>
-                      <Trash2 className="size-4 text-danger" />
-                    </Button>
+
+                  <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                    <div className="text-left sm:text-right">
+                      <span className="text-sm font-semibold block">
+                        <Money amount={a.amount_min} code={a.currency_code} decimals={a.currency_decimal_places} />
+                        {a.amount_max !== a.amount_min && (
+                          <>
+                            {" – "}
+                            <Money amount={a.amount_max} code={a.currency_code} decimals={a.currency_decimal_places} />
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => setPayingBill(b)}
+                        className="min-h-[38px] gap-1.5 font-medium shadow-xs"
+                      >
+                        <CreditCard className="size-4" /> Quick Pay
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant={matchingRule ? "ghost" : "secondary"}
+                        onClick={() => setRulingBill(b)}
+                        className="min-h-[38px] gap-1.5 font-medium"
+                      >
+                        <Wand2 className="size-4 text-primary" />
+                        {matchingRule ? "Edit Rule" : "Auto-Rule"}
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => delMut.mutate(b.id)}
+                        aria-label={`Delete ${a.name}`}
+                        className="min-h-[38px] min-w-[38px]"
+                      >
+                        <Trash2 className="size-4 text-danger" />
+                      </Button>
+                    </div>
                   </div>
                 </li>
               );
@@ -1401,6 +1922,30 @@ function BillsSection() {
           </ul>
         )}
       </Card>
+
+      {/* Quick Pay Modal */}
+      {payingBill && (
+        <QuickPayModal
+          key={payingBill.id}
+          bill={payingBill}
+          onClose={() => setPayingBill(null)}
+          accounts={assetAccounts}
+          categories={categoriesList}
+        />
+      )}
+
+      {/* Create / Edit Auto Rule Modal */}
+      {rulingBill && (
+        <CreateBillRuleModal
+          key={rulingBill.id}
+          bill={rulingBill}
+          existingRule={findMatchingRuleForBill(rulesList, rulingBill.attributes.name)}
+          ruleGroups={groupsList}
+          categories={categoriesList}
+          budgets={budgetsList}
+          onClose={() => setRulingBill(null)}
+        />
+      )}
     </div>
   );
 }

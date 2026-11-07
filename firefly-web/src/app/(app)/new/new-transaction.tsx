@@ -349,7 +349,7 @@ function WalletCalculatorForm({
   const expenseNames = all.filter((a) => a.attributes.type === "expense").map((a) => a.attributes.name);
   const revenueNames = all.filter((a) => a.attributes.type === "revenue").map((a) => a.attributes.name);
 
-  // Form state (supports pre-filling from URL query params when duplicating a transaction)
+  // Form state (supports pre-filling from URL query params when duplicating a transaction or paying a bill)
   const [selectedAssetId, setAssetId] = useState<string | null>(() => searchParams.get("sourceId"));
   const [destId, setDestId] = useState<string | null>(() => searchParams.get("destId"));
   const [counterparty, setCounterparty] = useState(() => searchParams.get("counterparty") ?? "");
@@ -359,6 +359,8 @@ function WalletCalculatorForm({
   const [category, setCategory] = useState(() => searchParams.get("category") ?? "");
   const [budgetId, setBudgetId] = useState(() => searchParams.get("budgetId") ?? "");
   const [tags, setTags] = useState(() => searchParams.get("tags") ?? "");
+  const [billId, setBillId] = useState<string | null>(() => searchParams.get("billId") ?? searchParams.get("bill_id"));
+  const [billName, setBillName] = useState<string | null>(() => searchParams.get("billName") ?? searchParams.get("bill_name"));
   const [notes, setNotes] = useState("");
   const [attachments, setAttachments] = useState<Array<{ name: string; type: string; dataUrl: string }>>([]);
   const [error, setError] = useState<string | null>(null);
@@ -590,6 +592,8 @@ function WalletCalculatorForm({
         split.source_id = asset.id;
         if (counterparty.trim()) split.destination_name = counterparty.trim();
         if (budgetId) split.budget_id = budgetId;
+        if (billId) split.bill_id = billId;
+        if (billName) split.bill_name = billName;
       } else if (type === "deposit") {
         split.destination_id = asset.id;
         if (counterparty.trim()) split.source_name = counterparty.trim();
@@ -790,6 +794,23 @@ function WalletCalculatorForm({
           {/* MOBILE ONLY (< lg) KEYPAD VIEW */}
           <div className="flex flex-col lg:hidden">
             <div className="flex flex-col gap-3 border-b border-border p-3 sm:p-4">
+              {(billName || billId) && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Sparkles className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate">Paying Bill: <strong>{billName || "Linked Bill"}</strong></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setBillId(null); setBillName(null); }}
+                    className="rounded p-0.5 hover:bg-primary/20"
+                    title="Remove bill link"
+                    aria-label="Remove bill link"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              )}
               {/* Giant Amount Display + Mobile Pull-Tab */}
               <div className={cn("relative flex min-h-28 flex-col items-center justify-center rounded-xl px-10 py-4", accentSoft)}>
                 <div className="flex items-baseline gap-2">
@@ -1014,6 +1035,23 @@ function WalletCalculatorForm({
 
           {/* DESKTOP KEYBOARD-FIRST FINANCIAL COLUMN (>= lg) */}
           <div className="hidden lg:flex flex-col gap-5 p-5">
+            {(billName || billId) && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Sparkles className="size-3.5 shrink-0 text-primary" />
+                  <span className="truncate">Paying Bill / Subscription: <strong>{billName || "Linked Bill"}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setBillId(null); setBillName(null); }}
+                  className="rounded p-0.5 hover:bg-primary/20"
+                  title="Remove bill link"
+                  aria-label="Remove bill link"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
             {/* Amount Input with Live Math Evaluator */}
             <div className="flex flex-col gap-2">
               <label htmlFor="desktop-amount" className="flex items-center justify-between text-sm font-semibold">

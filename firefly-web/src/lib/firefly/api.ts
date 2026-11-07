@@ -328,6 +328,9 @@ export const api = {
   deleteRecurrence: (id: string) => ff.del(`recurrences/${id}`),
 
   bills: (start?: string, end?: string) => getAll<Bill>("bills", { start, end }),
+  billRules: (id: string) => getAll<Rule>(`bills/${id}/rules`),
+  billTransactions: (id: string, params?: { start?: string; end?: string }) =>
+    getAll<TransactionGroup>(`bills/${id}/transactions`, params),
   createBill: (payload: {
     name: string;
     amount_min: string;
