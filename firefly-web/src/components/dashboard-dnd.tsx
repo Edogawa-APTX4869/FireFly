@@ -515,6 +515,9 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     (e: React.PointerEvent, cardKey: DashboardCardKey) => {
       // Drag only on primary pointer button (left click, touch, pen)
       if (e.button !== 0 || typeof document === "undefined") return;
+      if (e.cancelable) {
+        e.preventDefault();
+      }
 
       const cardEl = document.getElementById(`card-${cardKey}`);
       if (!cardEl) return;
@@ -539,15 +542,27 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         capturedPointerTargetRef.current = { el: handleEl, pointerId };
       } catch {}
 
-      // Attach non-passive touchmove listener with preventDefault immediately to block Android WebView scroll/overscroll gestures
+      // Immediately lock down touch action and overscroll on body, document, and container from millisecond 0
+      if (containerRef.current) {
+        containerRef.current.style.touchAction = "none";
+      }
+      document.body.classList.add("is-dashboard-dragging");
+      document.documentElement.classList.add("is-dashboard-dragging");
+      document.body.style.touchAction = "none";
+      document.documentElement.style.touchAction = "none";
+      document.body.style.userSelect = "none";
+
+      // Attach non-passive touchmove listener with preventDefault immediately on window and document with capture: true
       const handleTouchMove = (te: TouchEvent) => {
         if (te.cancelable) {
           te.preventDefault();
         }
       };
-      window.addEventListener("touchmove", handleTouchMove, { passive: false });
+      window.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+      document.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
       activeTouchMoveListenerRef.current = () => {
-        window.removeEventListener("touchmove", handleTouchMove);
+        window.removeEventListener("touchmove", handleTouchMove, true);
+        document.removeEventListener("touchmove", handleTouchMove, true);
       };
 
       // Subtle haptic tick on touch devices & Android APK
@@ -626,32 +641,9 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           clone.style.contain = "paint";
           clone.classList.add("widget-card-dragging");
 
-          // DOM clone optimization for mobile / Android WebView:
-          // Disable SVG shape/text rendering recalculations and freeze all animations/transitions
-          clone.querySelectorAll("svg").forEach((svg) => {
-            svg.setAttribute("shape-rendering", "optimizeSpeed");
-            svg.setAttribute("text-rendering", "optimizeSpeed");
-          });
-          clone.querySelectorAll<HTMLElement>("*").forEach((node) => {
-            if (node.style) {
-              node.style.animation = "none";
-              node.style.transition = "none";
-              node.style.pointerEvents = "none";
-            }
-          });
-
           document.body.appendChild(clone);
           cloneRef.current = clone;
-
-          if (containerRef.current) {
-            containerRef.current.style.touchAction = "none";
-          }
-          document.body.classList.add("is-dashboard-dragging");
-          document.documentElement.classList.add("is-dashboard-dragging");
-          document.body.style.userSelect = "none";
           document.body.style.cursor = "grabbing";
-          document.body.style.touchAction = "none";
-          document.documentElement.style.touchAction = "none";
 
           setActiveDrag({
             key: cardKey,

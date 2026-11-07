@@ -295,10 +295,10 @@ describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
     expect(computeTargetDropIndex({ x: 670, y: 250 }, bentoSiblings, 1)).toBe(2);
   });
 
-  it("handles mobile single-column card shifting and reverse movement with updated geometry", () => {
-    // Initial resting positions in single-column mobile view:
-    // Card 0 (gauges) was lifted. Siblings are Card 1 (recent_records) and Card 2 (charts)
-    // Initially Card 1 is at 250..450 (midY = 350)
+  it("handles mobile single-column card shifting and reverse movement with stable resting geometry", () => {
+    // Resting positions in single-column mobile view:
+    // Card 0 was lifted. Siblings are Card 1 (recent_records) and Card 2 (charts)
+    // Card 1 is at 250..450 (midY = 350)
     // Card 2 is at 470..670 (midY = 570)
     const initialSiblings: SiblingRectItem[] = [
       {
@@ -311,34 +311,23 @@ describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
       },
     ];
 
-    // Dragging down past Card 1 (midY 350 + 18 = 368)
+    // Dragging down past Card 1 (midY 350 + 18 = 368) switches to dropIndex 1
     const newDropIndex = computeTargetDropIndex({ x: 180, y: 380 }, initialSiblings, 0);
     expect(newDropIndex).toBe(1);
 
-    // After React re-renders and FLIP updates resting positions:
-    // Card 1 shifts UP to slot 0: top 30..230 (midY = 130)
-    // Card 2 remains at slot 2: top 470..670 (midY = 570)
-    const updatedSiblingsAfterShift: SiblingRectItem[] = [
-      {
-        key: "recent_records" as DashboardCardKey,
-        rect: { left: 16, right: 360, top: 30, bottom: 230, width: 344, height: 200 },
-      },
-      {
-        key: "charts" as DashboardCardKey,
-        rect: { left: 16, right: 360, top: 470, bottom: 670, width: 344, height: 200 },
-      },
-    ];
+    // Reversing direction back up towards slot 0:
+    // With stable resting geometry, crossing Card 1's midpoint minus hysteresis (350 - 18 = 332)
+    // immediately and responsively switches back to slot 0 without lag or getting trapped:
+    expect(computeTargetDropIndex({ x: 180, y: 320 }, initialSiblings, 1)).toBe(0);
 
-    // Pointer reversing direction back up towards slot 0:
-    // With updated geometry, Card 1's resting midY is 130.
-    // When pointer moves up past 130 - 18 = 112:
-    expect(computeTargetDropIndex({ x: 180, y: 110 }, updatedSiblingsAfterShift, 1)).toBe(0);
-
-    // Pointer resting between 130 and 470 (e.g. at y = 300) stays stably at dropIndex 1 without flutter:
-    expect(computeTargetDropIndex({ x: 180, y: 300 }, updatedSiblingsAfterShift, 1)).toBe(1);
+    // Deadband is cleanly bounded to 36px [332, 368]: pointer at y = 350 stably remains at 1 without jitter:
+    expect(computeTargetDropIndex({ x: 180, y: 350 }, initialSiblings, 1)).toBe(1);
 
     // Moving further down past Card 2 (midY 570 + 18 = 588) switches to dropIndex 2:
-    expect(computeTargetDropIndex({ x: 180, y: 600 }, updatedSiblingsAfterShift, 1)).toBe(2);
+    expect(computeTargetDropIndex({ x: 180, y: 600 }, initialSiblings, 1)).toBe(2);
+
+    // Reversing up from slot 2 past Card 2 (570 - 18 = 552) returns cleanly to dropIndex 1:
+    expect(computeTargetDropIndex({ x: 180, y: 540 }, initialSiblings, 2)).toBe(1);
   });
 
   it("maintains stable sibling coordinate offsets during programmatic and native container scrolling", () => {
