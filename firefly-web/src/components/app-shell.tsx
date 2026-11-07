@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import {
   BarChart3,
   Bell,
@@ -13,6 +13,8 @@ import {
   Menu,
   Monitor,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
   PieChart,
   Plus,
   Settings,
@@ -434,12 +436,50 @@ export function MobileNavDrawer({
   );
 }
 
+function subscribeDesktopSidebar(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  window.addEventListener("wallet-sidebar-toggle", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("wallet-sidebar-toggle", callback);
+  };
+}
+
+function getDesktopSidebarSnapshot(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return localStorage.getItem("wallet_desktop_sidebar") !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function getServerDesktopSidebarSnapshot(): boolean {
+  return true;
+}
+
 export function AppShellInner({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const desktopSidebarOpen = useSyncExternalStore(
+    subscribeDesktopSidebar,
+    getDesktopSidebarSnapshot,
+    getServerDesktopSidebarSnapshot,
+  );
   const { theme, resolvedTheme, cycleTheme } = useTheme();
+
+  function toggleDesktopSidebar() {
+    try {
+      const current = getDesktopSidebarSnapshot();
+      localStorage.setItem("wallet_desktop_sidebar", String(!current));
+      window.dispatchEvent(new Event("wallet-sidebar-toggle"));
+    } catch {
+      // ignore in non-browser env
+    }
+  }
 
   useEscapeDismiss(drawerOpen, () => setDrawerOpen(false), "mobile-nav-drawer");
   useEscapeDismiss(notificationsOpen, () => setNotificationsOpen(false), "mobile-notifications-dialog");
@@ -452,12 +492,18 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
   const themeTitle = `Theme: ${currentLabel} (click for ${nextLabel})`;
   const themeAriaLabel = `Current theme: ${currentLabel}. Switch to ${nextLabel} theme`;
 
-  // Keyboard shortcuts: N = new expense, T = transfer, I = income, S = reports, / = search transactions (ignored while typing).
+  // Keyboard shortcuts: N = new expense, T = transfer, I = income, S = reports, / = search transactions, [ = toggle sidebar.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement;
-      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      if (e.isComposing) return;
       if (el.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (e.key === "[" || ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B"))) {
+        e.preventDefault();
+        toggleDesktopSidebar();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "n") router.push("/new?type=withdrawal");
       if (e.key === "t") router.push("/new?type=transfer");
       if (e.key === "i") router.push("/new?type=deposit");
@@ -492,14 +538,46 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
         onCycleTheme={cycleTheme}
       />
 
+      {/* Floating button to restore side menu when collapsed on desktop */}
+      {!desktopSidebarOpen && (
+        <button
+          type="button"
+          onClick={toggleDesktopSidebar}
+          aria-label="Show side menu"
+          title="Show side menu (Hotkey: [ or Ctrl+B)"
+          className="fixed left-3 top-3.5 z-40 hidden md:flex items-center gap-2 rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs font-semibold text-fg shadow-lg backdrop-blur hover:bg-surface-2 hover:border-primary/50 active:scale-95 transition-all"
+        >
+          <PanelLeftOpen className="size-4 text-primary" aria-hidden="true" />
+          <span>Show menu</span>
+        </button>
+      )}
+
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface p-4 md:flex">
-        <Link href="/" className="mb-5 flex items-center gap-2 px-2 text-lg font-bold">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
-            <Wallet className="size-4" aria-hidden />
-          </span>
-          Wallet
-        </Link>
+      <aside
+        className={cn(
+          "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-surface transition-all duration-200 ease-in-out md:flex",
+          desktopSidebarOpen
+            ? "w-64 p-4"
+            : "w-0 p-0 border-r-0 overflow-hidden opacity-0 pointer-events-none",
+        )}
+      >
+        <div className="mb-5 flex items-center justify-between px-2">
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
+              <Wallet className="size-4" aria-hidden />
+            </span>
+            Wallet
+          </Link>
+          <button
+            type="button"
+            onClick={toggleDesktopSidebar}
+            aria-label="Hide side menu"
+            title="Hide side menu (Hotkey: [ or Ctrl+B)"
+            className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-all"
+          >
+            <PanelLeftClose className="size-4" />
+          </button>
+        </div>
         <Link
           href="/new?type=withdrawal"
           className="mb-4 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-fg hover:opacity-90 active:scale-[0.98] transition-all"
@@ -532,23 +610,50 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
       <main className="min-w-0 flex-1 px-3.5 pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:px-8 md:pt-7 md:pb-24 pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))]">
         <div className="mx-auto w-full max-w-6xl">
           {/* Desktop quick shortcut bar */}
-          <div className="mb-5 hidden items-center gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
-            <span>Shortcuts:</span>
-            <Link href="/new?type=withdrawal" className="inline-flex items-center gap-1 hover:text-fg">
-              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">N</kbd> Expense
-            </Link>
-            <Link href="/new?type=transfer" className="inline-flex items-center gap-1 hover:text-fg">
-              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">T</kbd> Transfer
-            </Link>
-            <Link href="/new?type=deposit" className="inline-flex items-center gap-1 hover:text-fg">
-              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">I</kbd> Income
-            </Link>
-            <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
-              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
-            </Link>
-            <Link href="/reports" className="inline-flex items-center gap-1 hover:text-fg">
-              <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">S</kbd> Reports
-            </Link>
+          <div className="mb-5 hidden items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleDesktopSidebar}
+                aria-label={desktopSidebarOpen ? "Hide side menu" : "Show side menu"}
+                title={`${desktopSidebarOpen ? "Hide" : "Show"} side menu (Hotkey: [ or Ctrl+B)`}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-fg hover:bg-surface-2 hover:text-primary transition-colors font-medium active:scale-95"
+              >
+                {desktopSidebarOpen ? (
+                  <>
+                    <PanelLeftClose className="size-4 text-primary" aria-hidden="true" />
+                    <span>Hide menu</span>
+                  </>
+                ) : (
+                  <>
+                    <PanelLeftOpen className="size-4 text-primary" aria-hidden="true" />
+                    <span>Show menu</span>
+                  </>
+                )}
+              </button>
+              <div className="h-4 w-px bg-border" aria-hidden="true" />
+              <span>Shortcuts:</span>
+              <Link href="/new?type=withdrawal" className="inline-flex items-center gap-1 hover:text-fg">
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">N</kbd> Expense
+              </Link>
+              <Link href="/new?type=transfer" className="inline-flex items-center gap-1 hover:text-fg">
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">T</kbd> Transfer
+              </Link>
+              <Link href="/new?type=deposit" className="inline-flex items-center gap-1 hover:text-fg">
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">I</kbd> Income
+              </Link>
+              <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
+              </Link>
+              <Link href="/reports" className="inline-flex items-center gap-1 hover:text-fg">
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">S</kbd> Reports
+              </Link>
+            </div>
+            {!desktopSidebarOpen && (
+              <span className="text-[11px] text-muted font-mono">
+                Press [ or Ctrl+B to toggle menu
+              </span>
+            )}
           </div>
           {children}
         </div>

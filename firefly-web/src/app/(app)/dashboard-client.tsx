@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js";
 import {
@@ -26,6 +26,8 @@ import {
   EyeOff,
   GripVertical,
   List,
+  Maximize2,
+  Minimize2,
   MoreVertical,
   PiggyBank,
   Plus,
@@ -118,7 +120,9 @@ export function DashboardSegmentedTabs({
       ]}
       activeTab={activeTab}
       onChange={(key) => onChange(key as "accounts" | "budgets")}
-      className={cn("grid grid-cols-2 sm:w-72", className)}
+      size="md"
+      className={cn("grid grid-cols-2 sm:w-88 md:w-96 sm:min-w-[340px]", className)}
+      tabClassName="py-2 px-3 text-sm font-semibold"
       ariaLabel="Dashboard views"
     />
   );
@@ -331,6 +335,378 @@ export function DashboardQuickFilterChips() {
   );
 }
 
+function CardEdgeResizeHandle({
+  span,
+  onSetSpan,
+  onToggleSpan,
+}: {
+  span: 1 | 2;
+  onSetSpan: (s: 1 | 2) => void;
+  onToggleSpan: () => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const startXRef = useRef(0);
+  const currentSpanRef = useRef(span);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={span === 2 ? "Shrink card width to 1 column" : "Expand card width to 2 columns"}
+      title={span === 2 ? "Click or swipe left to shrink card (1 col)" : "Click or swipe right to expand card (2 cols)"}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+        startXRef.current = e.clientX;
+        currentSpanRef.current = span;
+        try {
+          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }}
+      onPointerMove={(e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startXRef.current;
+        if (dx > 25 && currentSpanRef.current === 1) {
+          onSetSpan(2);
+          startXRef.current = e.clientX;
+          currentSpanRef.current = 2;
+        } else if (dx < -25 && currentSpanRef.current === 2) {
+          onSetSpan(1);
+          startXRef.current = e.clientX;
+          currentSpanRef.current = 1;
+        }
+      }}
+      onPointerUp={(e) => {
+        if (isDragging) {
+          const dx = e.clientX - startXRef.current;
+          if (Math.abs(dx) < 6) {
+            onToggleSpan();
+          }
+          setIsDragging(false);
+        }
+      }}
+      onPointerCancel={() => setIsDragging(false)}
+      className="group/edge absolute -right-2.5 inset-y-6 hidden w-5 cursor-ew-resize items-center justify-center lg:flex select-none touch-none z-20"
+    >
+      <div
+        className={cn(
+          "flex h-12 w-1.5 items-center justify-center rounded-full bg-border/70 shadow-xs transition-all duration-200 group-hover/edge:w-2.5 group-hover/edge:bg-primary group-hover/edge:scale-y-115",
+          isDragging && "w-2.5 bg-primary ring-2 ring-primary/40 scale-y-125",
+        )}
+      >
+        <span className="size-1 rounded-full bg-surface" />
+      </div>
+      <span className="pointer-events-none absolute -bottom-7 right-0 hidden rounded-md bg-fg px-2 py-0.5 text-[10px] font-semibold text-bg shadow-md group-hover/edge:block whitespace-nowrap z-30">
+        {span === 2 ? "← Swipe / click to shrink (1 col)" : "Swipe / click to expand (2 cols) →"}
+      </span>
+    </div>
+  );
+}
+
+export function CardMiniPreview({ cardKey }: { cardKey: DashboardCardKey }) {
+  switch (cardKey) {
+    case "gauges":
+      return (
+        <div className="flex items-center justify-around rounded-lg bg-surface-2/60 p-2 text-center">
+          <div className="flex flex-col items-center">
+            <div className="relative flex size-12 items-center justify-center">
+              <svg viewBox="0 0 36 36" className="size-10 -rotate-90">
+                <path className="text-border" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" strokeDasharray="100, 100" />
+                <path className="text-primary" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" strokeDasharray="75, 100" />
+              </svg>
+              <span className="absolute text-[9px] font-bold">5.6K</span>
+            </div>
+            <span className="text-[9px] font-medium text-muted">Liquid</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <div className="relative flex size-12 items-center justify-center">
+              <svg viewBox="0 0 36 36" className="size-10 -rotate-90">
+                <path className="text-border" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" strokeDasharray="100, 100" />
+                <path className="text-success" strokeWidth="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831" strokeDasharray="85, 100" />
+              </svg>
+              <span className="absolute text-[9px] font-bold text-success">+782</span>
+            </div>
+            <span className="text-[9px] font-medium text-muted">Cash Flow</span>
+          </div>
+        </div>
+      );
+    case "quick_stats":
+      return (
+        <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="rounded border border-border/60 bg-surface p-1">
+            <p className="text-[9px] text-muted">Spent Today</p>
+            <p className="font-bold text-fg">14.50 BHD</p>
+          </div>
+          <div className="rounded border border-border/60 bg-surface p-1">
+            <p className="text-[9px] text-muted">Last 7 Days</p>
+            <p className="font-bold text-fg">120.00 BHD</p>
+          </div>
+          <div className="rounded border border-border/60 bg-surface p-1">
+            <p className="text-[9px] text-muted">This Month</p>
+            <p className="font-bold text-fg">540.00 BHD</p>
+          </div>
+          <div className="rounded border border-border/60 bg-surface p-1">
+            <p className="text-[9px] text-muted">Daily Average</p>
+            <p className="font-bold text-fg">18.00 BHD</p>
+          </div>
+        </div>
+      );
+    case "recent_records":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between border-b border-border/40 pb-1">
+            <span className="font-semibold text-fg">Lulu Hypermarket</span>
+            <span className="font-mono font-bold text-danger">-32.40 BHD</span>
+          </div>
+          <div className="flex items-center justify-between border-b border-border/40 pb-1">
+            <span className="font-semibold text-fg">Salary Deposit</span>
+            <span className="font-mono font-bold text-success">+1,250 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">Coffee Shop</span>
+            <span className="font-mono font-bold text-danger">-3.20 BHD</span>
+          </div>
+        </div>
+      );
+    case "cashflow_table":
+      return (
+        <div className="rounded-lg bg-surface-2/60 p-1.5 text-[9px]">
+          <table className="w-full">
+            <thead>
+              <tr className="text-muted border-b border-border/50">
+                <th className="text-left font-medium pb-0.5">Overview</th>
+                <th className="text-right text-success pb-0.5">In</th>
+                <th className="text-right text-danger pb-0.5">Out</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              <tr>
+                <td className="py-0.5 text-muted">Count</td>
+                <td className="text-right font-mono font-medium">12</td>
+                <td className="text-right font-mono font-medium text-danger">38</td>
+              </tr>
+              <tr>
+                <td className="py-0.5 text-muted">Total</td>
+                <td className="text-right font-mono font-bold text-success">1,250</td>
+                <td className="text-right font-mono font-bold text-danger">-468</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      );
+    case "top_categories":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Groceries</span>
+              <span className="text-muted">45%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: "45%" }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Dining & Cafes</span>
+              <span className="text-muted">30%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-amber-500 rounded-full" style={{ width: "30%" }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Transport</span>
+              <span className="text-muted">25%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-blue-500 rounded-full" style={{ width: "25%" }} />
+            </div>
+          </div>
+        </div>
+      );
+    case "top_payees":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">1. Lulu Hypermarket</span>
+            <span className="font-mono text-muted">180 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">2. Amazon Online</span>
+            <span className="font-mono text-muted">95 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">3. Shell Petrol</span>
+            <span className="font-mono text-muted">42 BHD</span>
+          </div>
+        </div>
+      );
+    case "largest_expenses":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between">
+            <span className="truncate font-semibold text-fg">Annual Car Insurance</span>
+            <span className="font-mono font-bold text-danger">-240 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="truncate font-semibold text-fg">Flight Tickets</span>
+            <span className="font-mono font-bold text-danger">-185 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="truncate font-semibold text-fg">Electronics Store</span>
+            <span className="font-mono font-bold text-danger">-120 BHD</span>
+          </div>
+        </div>
+      );
+    case "spending_by_account":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Daily Account</span>
+              <span className="font-mono text-muted">62%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-primary rounded-full" style={{ width: "62%" }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Credit Card</span>
+              <span className="font-mono text-muted">38%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-danger rounded-full" style={{ width: "38%" }} />
+            </div>
+          </div>
+        </div>
+      );
+    case "charts":
+      return (
+        <div className="flex h-14 items-end justify-between gap-1 rounded-lg bg-surface-2/60 p-2">
+          <div className="flex h-full flex-1 items-end gap-1 border-r border-border/50 pr-2">
+            <div className="w-2.5 rounded-t bg-emerald-500" style={{ height: "65%" }} />
+            <div className="w-2.5 rounded-t bg-rose-500" style={{ height: "45%" }} />
+            <div className="w-2.5 rounded-t bg-emerald-500" style={{ height: "80%" }} />
+            <div className="w-2.5 rounded-t bg-rose-500" style={{ height: "55%" }} />
+          </div>
+          <div className="relative flex h-full flex-1 items-end justify-center">
+            <svg viewBox="0 0 60 30" className="w-full h-8 overflow-visible">
+              <path d="M0,25 Q15,10 30,18 T60,5" fill="none" stroke="var(--primary)" strokeWidth="2.5" />
+            </svg>
+          </div>
+        </div>
+      );
+    case "balance_trend":
+      return (
+        <div className="flex h-12 items-center justify-center rounded-lg bg-surface-2/60 p-2">
+          <svg viewBox="0 0 100 35" className="w-full h-8 overflow-visible">
+            <path d="M0,30 Q25,20 50,24 T100,6" fill="none" stroke="var(--primary)" strokeWidth="2.5" />
+          </svg>
+        </div>
+      );
+    case "income_expense_bars":
+      return (
+        <div className="flex h-12 items-end justify-around rounded-lg bg-surface-2/60 p-2">
+          <div className="w-2 rounded-t bg-emerald-500" style={{ height: "60%" }} />
+          <div className="w-2 rounded-t bg-rose-500" style={{ height: "40%" }} />
+          <div className="w-2 rounded-t bg-emerald-500" style={{ height: "75%" }} />
+          <div className="w-2 rounded-t bg-rose-500" style={{ height: "50%" }} />
+          <div className="w-2 rounded-t bg-emerald-500" style={{ height: "85%" }} />
+          <div className="w-2 rounded-t bg-rose-500" style={{ height: "45%" }} />
+        </div>
+      );
+    case "balance_by_currency":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">BHD (Primary)</span>
+            <span className="font-mono font-bold text-fg">4,768.110</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-fg">USD (Dollar)</span>
+            <span className="font-mono text-muted">$2,224.55</span>
+          </div>
+        </div>
+      );
+    case "budgets_goals":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Groceries</span>
+              <span className="text-warning">75%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-warning rounded-full" style={{ width: "75%" }} />
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between font-semibold">
+              <span>Vacation</span>
+              <span className="text-primary">40%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+              <div className="h-full bg-primary rounded-full" style={{ width: "40%" }} />
+            </div>
+          </div>
+        </div>
+      );
+    case "piggy_banks":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between font-semibold">
+            <span>Emergency Fund</span>
+            <span className="text-success font-bold">65%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+            <div className="h-full bg-success rounded-full" style={{ width: "65%" }} />
+          </div>
+          <p className="text-[9px] text-muted">1,950 of 3,000 BHD saved</p>
+        </div>
+      );
+    case "upcoming_bills":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block font-semibold text-fg">Home Fiber Internet</span>
+              <span className="text-[9px] text-warning font-medium">Due in 3 days</span>
+            </div>
+            <span className="font-mono font-bold text-fg">25.00 BHD</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block font-semibold text-fg">Cloud Storage</span>
+              <span className="text-[9px] text-muted font-medium">Due in 14 days</span>
+            </div>
+            <span className="font-mono font-bold text-fg">4.50 BHD</span>
+          </div>
+        </div>
+      );
+    case "liabilities":
+      return (
+        <div className="flex flex-col gap-1 rounded-lg bg-surface-2/60 p-2 text-[10px]">
+          <div className="flex justify-between font-semibold">
+            <span>Car Loan Payoff</span>
+            <span className="text-success font-bold">60% Paid</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-border overflow-hidden">
+            <div className="h-full bg-success rounded-full" style={{ width: "60%" }} />
+          </div>
+          <p className="text-[9px] text-muted">12 installments remaining</p>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
 export function DashboardClient() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -347,6 +723,7 @@ export function DashboardClient() {
   const [dragOverKey, setDragOverKey] = useState<DashboardCardKey | null>(null);
   const [configOpenKey, setConfigOpenKey] = useState<DashboardCardKey | null>(null);
   const [showCardManager, setShowCardManager] = useState(false);
+  const [previewCardKey, setPreviewCardKey] = useState<DashboardCardKey | null>(null);
 
   const primaryQ = usePrimaryCurrency();
   const accountsQ = useAccounts("all");
@@ -1150,6 +1527,15 @@ export function DashboardClient() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => setPreviewCardKey(c.key)}
+                        title="Preview card layout"
+                        aria-label="Preview card layout"
+                      >
+                        <Eye className="size-4 text-primary" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="hidden sm:inline-flex"
                         onClick={() => updateCardConfig(c.key, { span: span === 2 ? 1 : 2 })}
                         title={span === 2 ? "Switch to half width (1 col on desktop)" : "Switch to full width (2 cols on desktop)"}
@@ -1198,11 +1584,14 @@ export function DashboardClient() {
             </div>
           </div>
 
-          {/* Categorized Catalog of Available Cards */}
-          <div className="flex flex-col gap-3 border-t border-border pt-4">
-            <p className="text-xs font-semibold tracking-wider text-muted uppercase">
-              Add More Cards ({availableCards.length} available)
-            </p>
+          {/* Categorized Catalog of Available Cards with Live Dummy Previews */}
+          <div className="flex flex-col gap-4 border-t border-border pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold tracking-wider text-muted uppercase">
+                Add More Cards ({availableCards.length} available)
+              </p>
+              <span className="text-[11px] text-muted">Click preview to see visual card mockup</span>
+            </div>
             {availableCards.length === 0 ? (
               <p className="text-xs text-muted">All available cards are already active in your dashboard.</p>
             ) : (
@@ -1210,22 +1599,47 @@ export function DashboardClient() {
                 const items = availableCards.filter((c) => c.group === grp);
                 if (items.length === 0) return null;
                 return (
-                  <div key={grp} className="flex flex-col gap-2">
+                  <div key={grp} className="flex flex-col gap-2.5">
                     <p className="text-xs font-medium text-muted">{CARD_GROUP_LABELS[grp]}</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {items.map((c) => (
-                        <button
+                        <div
                           key={c.key}
-                          type="button"
-                          onClick={() => addCard(c.key)}
-                          className="flex items-start gap-2.5 rounded-xl border border-dashed border-primary/40 bg-surface p-3 text-left transition-colors hover:border-primary hover:bg-primary-soft/30"
+                          className="flex flex-col justify-between gap-2.5 rounded-xl border border-border/80 bg-surface p-3 transition-all hover:border-primary/60 hover:shadow-xs"
                         >
-                          <Plus className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold">{c.title}</span>
-                            <span className="block text-xs text-muted">{c.description}</span>
-                          </span>
-                        </button>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-sm font-semibold text-fg">{c.title}</h4>
+                              <Badge tone={c.defaultSpan === 2 ? "primary" : "neutral"} className="text-[10px]">
+                                {c.defaultSpan === 2 ? "2 cols" : "1 col"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted line-clamp-2">{c.description}</p>
+                          </div>
+
+                          {/* Visual Dummy Mockup Thumbnail Preview */}
+                          <div className="rounded-lg border border-border/60 bg-surface-2/30 p-1.5">
+                            <CardMiniPreview cardKey={c.key} />
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewCardKey(c.key)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-primary transition-colors"
+                            >
+                              <Eye className="size-3.5" /> Preview
+                            </button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => addCard(c.key)}
+                              className="h-7 text-xs font-semibold"
+                            >
+                              <Plus className="size-3.5 text-primary" /> Add card
+                            </Button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -1234,6 +1648,61 @@ export function DashboardClient() {
             )}
           </div>
         </div>
+      </ModalSheet>
+
+      {/* Enlarged Card Mockup Preview Sheet */}
+      <ModalSheet
+        open={previewCardKey !== null}
+        onClose={() => setPreviewCardKey(null)}
+        title={previewCardKey ? `Preview: ${CATALOG_BY_KEY.get(previewCardKey)?.title ?? ""}` : "Card Preview"}
+        subtitle={previewCardKey ? CATALOG_BY_KEY.get(previewCardKey)?.description : ""}
+        maxWidth="max-w-md"
+      >
+        {previewCardKey && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-surface-2/40 px-3 py-2 text-xs">
+              <span className="text-muted">
+                Group: <strong className="text-fg">{CARD_GROUP_LABELS[CATALOG_BY_KEY.get(previewCardKey)?.group ?? "overview"]}</strong>
+              </span>
+              <span className="text-muted">
+                Default: <strong className="text-fg">{CATALOG_BY_KEY.get(previewCardKey)?.defaultSpan === 2 ? "Full width (2 cols)" : "Half width (1 col)"}</strong>
+              </span>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-4 shadow-xs">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs font-bold text-fg">
+                  {CATALOG_BY_KEY.get(previewCardKey)?.title}
+                </span>
+                <span className="rounded-full bg-primary-soft/40 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  Mockup Preview
+                </span>
+              </div>
+              <CardMiniPreview cardKey={previewCardKey} />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <Button variant="secondary" size="sm" onClick={() => setPreviewCardKey(null)}>
+                Close
+              </Button>
+              {cards.some((c) => c.key === previewCardKey && c.visible) ? (
+                <Button variant="ghost" size="sm" disabled>
+                  Already on dashboard
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    addCard(previewCardKey);
+                    setPreviewCardKey(null);
+                  }}
+                >
+                  <Plus className="size-4" /> Add to dashboard
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </ModalSheet>
     </div>
   );
@@ -1273,6 +1742,7 @@ function DashboardCardShell({
   children: React.ReactNode;
 }) {
   const entry = CATALOG_BY_KEY.get(card.key);
+  const span = card.span ?? entry?.defaultSpan ?? 1;
   const subtitle =
     card.key === "gauges"
       ? `Past ${card.periodDays} days performance, and outlook for next 7 days.`
@@ -1281,6 +1751,13 @@ function DashboardCardShell({
         : entry?.description;
   return (
     <Card className="relative flex flex-col gap-3">
+      {/* Outside edge resizer (swipe left/right or click to expand/shrink card) */}
+      <CardEdgeResizeHandle
+        span={span as 1 | 2}
+        onSetSpan={(nextSpan) => onUpdate({ span: nextSpan })}
+        onToggleSpan={() => onUpdate({ span: span === 2 ? 1 : 2 })}
+      />
+
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span
@@ -1298,14 +1775,25 @@ function DashboardCardShell({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleConfig}
-          aria-label={`Configure ${card.title}`}
-          className="rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
-        >
-          <MoreVertical className="size-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onUpdate({ span: span === 2 ? 1 : 2 })}
+            title={span === 2 ? "Shrink to 1 column (half width)" : "Expand to 2 columns (full width)"}
+            aria-label="Toggle card width"
+            className="hidden size-8 items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg lg:flex transition-colors"
+          >
+            {span === 2 ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleConfig}
+            aria-label={`Configure ${card.title}`}
+            className="rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+          >
+            <MoreVertical className="size-4" />
+          </button>
+        </div>
       </div>
 
       {configOpen && (
