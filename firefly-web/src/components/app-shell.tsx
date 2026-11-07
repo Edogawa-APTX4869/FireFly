@@ -594,7 +594,7 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
       </aside>
 
       <main className="min-w-0 flex-1 px-3.5 pt-4 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 md:px-8 md:pt-7 md:pb-24 pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))]">
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1720px] 3xl:max-w-[2400px] transition-all duration-150">
           {/* Desktop quick shortcut bar */}
           <div className="mb-5 hidden items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-2 text-xs text-muted md:flex">
             <div className="flex items-center gap-3">

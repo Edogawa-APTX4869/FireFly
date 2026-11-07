@@ -214,7 +214,7 @@ export function TwoColumnAccountGrid({
   const meta = useResourceMeta();
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6">
       {accounts.map((acc, idx) => {
         const isResource = "attributes" in acc;
         const id = acc.id;
@@ -1111,6 +1111,9 @@ export function DashboardClient() {
   }
 
   function handleTouchDragMove(e: React.TouchEvent, containerAttr: string) {
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     const touch = e.touches[0];
     if (!touch) return;
     const el = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -1309,18 +1312,21 @@ export function DashboardClient() {
         extraCtx={extraCtx}
       />
 
-      {/* Bottom "Add more cards / Customize Dashboard" bar + ModalSheet */}
-      <Card className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs text-muted">
-          Showing <strong>{cards.filter((c) => c.visible).length}</strong> of <strong>{CARD_CATALOG.length}</strong> available dashboard cards
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setShowCardManager(true)}>
-            <SlidersHorizontal className="size-4 text-primary" aria-hidden />
-            Add more cards & rearrange
-          </Button>
-        </div>
-      </Card>
+      {/* Compact "Add more cards / Customize Dashboard" toolbar (Sleek, zero bulk) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 pt-1 pb-2 text-xs text-muted">
+        <span>
+          Showing <strong className="text-fg">{cards.filter((c) => c.visible).length}</strong> of{" "}
+          <strong>{CARD_CATALOG.length}</strong> available cards
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowCardManager(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-surface-2 active:scale-95 cursor-pointer"
+        >
+          <SlidersHorizontal className="size-3.5" aria-hidden="true" />
+          <span>Add more cards &amp; rearrange</span>
+        </button>
+      </div>
 
       <ModalSheet
         open={showCardManager}
@@ -1711,7 +1717,7 @@ function DashboardCardsGrid({
       ref={containerRef}
       style={isDraggingAny ? { touchAction: "none" } : undefined}
       className={cn(
-        "grid grid-cols-1 items-start gap-4 lg:grid-cols-2",
+        "grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4",
         isDraggingAny && "touch-none select-none",
       )}
     >
@@ -1817,7 +1823,7 @@ const DashboardCardItem = React.memo(function DashboardCardItem({
       data-card-key={card.key}
       className={cn(
         "scroll-mt-6 rounded-2xl transition-opacity duration-200",
-        span === 2 ? "lg:col-span-2" : "lg:col-span-1",
+        span === 2 ? "lg:col-span-2 2xl:col-span-2 3xl:col-span-2" : "lg:col-span-1 2xl:col-span-1 3xl:col-span-1",
         isDraggingAny && !isCurrent && "widget-card-recessed widget-card-sibling",
         isDraggingAny && "will-change-transform [backface-visibility:hidden] [transform:translate3d(0,0,0)]",
       )}
@@ -1941,6 +1947,9 @@ function DashboardCardShell({
             tabIndex={0}
             onPointerDown={(e) => {
               e.stopPropagation();
+              if (e.cancelable) {
+                e.preventDefault();
+              }
               onStartDrag?.(e);
             }}
           >

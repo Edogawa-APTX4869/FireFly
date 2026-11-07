@@ -206,7 +206,7 @@ export function DashboardDropPlaceholder({
       }}
       className={cn(
         "widget-drop-placeholder animate-placeholder-enter w-full",
-        span === 2 ? "lg:col-span-2" : "lg:col-span-1",
+        span === 2 ? "lg:col-span-2 2xl:col-span-2 3xl:col-span-2" : "lg:col-span-1 2xl:col-span-1 3xl:col-span-1",
       )}
     >
       <div className="flex items-center gap-2 font-medium opacity-80">
@@ -320,8 +320,6 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     const prefersReducedMotion =
       typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const nextSiblingRects: SiblingRectItem[] = [];
-
     for (const card of visibleCards) {
       if (card.key === activeDrag.key) continue;
       const el = document.getElementById(`card-${card.key}`);
@@ -335,18 +333,6 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       }
 
       const last = el.getBoundingClientRect();
-      nextSiblingRects.push({
-        key: card.key,
-        rect: {
-          top: last.top,
-          bottom: last.bottom,
-          left: last.left,
-          right: last.right,
-          width: last.width,
-          height: last.height,
-        },
-      });
-
       if (prefersReducedMotion) continue;
 
       const first = prevRects.get(card.key);
@@ -388,11 +374,6 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           });
         }
       }
-    }
-
-    // Maintain stable geometry: update cached sibling rects with true resting positions
-    if (nextSiblingRects.length > 0) {
-      cachedSiblingRectsRef.current = nextSiblingRects;
     }
   }, [activeDrag?.dropIndex, activeDrag?.key, visibleCards]);
 

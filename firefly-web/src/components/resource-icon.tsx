@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
 import {
@@ -303,49 +304,53 @@ export function ResourceIconBadge({
         <IconComp className={size === "sm" ? "size-3.5" : size === "lg" ? "size-5" : "size-4"} aria-hidden />
       </button>
 
-      {open && (
-        <>
-          {/* Invisible / subtle backdrop to dismiss on click outside */}
-          <div
-            className="fixed inset-0 z-40 bg-black/10 backdrop-blur-2xs cursor-default"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setOpen(false);
-            }}
-            aria-hidden="true"
-          />
-
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+          }}
+          aria-hidden="true"
+        >
           <div
             role="dialog"
+            aria-modal="true"
             aria-label="Choose Icon & Color"
             onClick={(e) => {
               e.stopPropagation();
             }}
-            className="fixed inset-x-4 top-24 z-50 mx-auto max-w-xs animate-pop-in rounded-2xl border border-border bg-surface p-3.5 shadow-2xl sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:mt-1.5 sm:w-72"
+            className="w-full max-w-xs animate-pop-in rounded-2xl border border-border bg-surface p-4 shadow-2xl sm:max-w-sm opacity-100"
           >
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="text-xs font-semibold">Choose Icon &amp; Color</span>
+            <div className="mb-3 flex items-center justify-between border-b border-border pb-2.5">
+              <span className="text-sm font-semibold text-fg">Choose Icon &amp; Color</span>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
-                className="cursor-pointer rounded-lg px-2 py-0.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                }}
+                className="cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-fg active:scale-95"
               >
                 Done
               </button>
             </div>
 
             {/* Color swatches */}
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
+            <div className="mb-3 flex flex-wrap gap-2">
               {COLOR_PALETTE.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  onClick={() => updateMut.mutate({ entity_type: entityType, entity_id: entityId, color: c })}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateMut.mutate({ entity_type: entityType, entity_id: entityId, color: c });
+                  }}
                   style={{ backgroundColor: c }}
                   className={cn(
-                    "size-5 cursor-pointer rounded-full border-2 transition-transform active:scale-90",
-                    color === c ? "border-fg scale-110 shadow-xs" : "border-transparent hover:scale-105",
+                    "size-6 cursor-pointer rounded-full border-2 transition-transform active:scale-90",
+                    color === c ? "border-fg scale-110 shadow-xs ring-2 ring-primary/40" : "border-transparent hover:scale-105",
                   )}
                   aria-label={`Color ${c}`}
                 />
@@ -353,19 +358,20 @@ export function ResourceIconBadge({
             </div>
 
             {/* Icon grid */}
-            <div className="grid max-h-48 grid-cols-7 gap-1 overflow-y-auto p-0.5">
+            <div className="grid max-h-56 grid-cols-7 gap-1.5 overflow-y-auto p-1.5 rounded-xl bg-surface-2/40 border border-border/50">
               {Object.entries(ICON_CATALOG).map(([name, Comp]) => (
                 <button
                   key={name}
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     updateMut.mutate({ entity_type: entityType, entity_id: entityId, icon: name });
                     setOpen(false);
                   }}
                   title={name}
                   className={cn(
-                    "flex size-8 cursor-pointer items-center justify-center rounded-lg transition-all hover:bg-surface-2 active:scale-90",
-                    iconName === name && "bg-primary-soft text-primary ring-1 ring-primary font-bold",
+                    "flex size-9 cursor-pointer items-center justify-center rounded-xl transition-all hover:bg-surface hover:shadow-xs active:scale-90",
+                    iconName === name && "bg-primary text-primary-fg ring-2 ring-primary/40 shadow-xs font-bold",
                   )}
                 >
                   <Comp className="size-4" />
@@ -373,7 +379,8 @@ export function ResourceIconBadge({
               ))}
             </div>
           </div>
-        </>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -36,6 +36,8 @@
 }
 
 @theme inline {
+  --breakpoint-3xl: 1920px;
+  --breakpoint-uw: 2400px;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -388,6 +390,7 @@ html.is-dashboard-dragging {
   pointer-events: none;
   /* Hardware acceleration & GPU layer promotion */
   will-change: transform;
+  -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
@@ -396,8 +399,29 @@ html.is-dashboard-dragging {
   contain: paint;
 }
 
+/* Declaratively freeze animations and disable pointer events on all clone descendants */
+.widget-card-dragging,
+.widget-card-dragging * {
+  animation: none !important;
+  transition: none !important;
+  pointer-events: none !important;
+}
+
+/* Optimize SVG text and path rasterization on mobile ARM GPUs */
+.widget-card-dragging svg {
+  shape-rendering: optimizeSpeed;
+  text-rendering: optimizeSpeed;
+}
+
+.widget-card-dragging img,
+.widget-card-dragging canvas {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
 .widget-card-sibling {
   will-change: transform;
+  -webkit-transform: translate3d(0, 0, 0);
   transform: translate3d(0, 0, 0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
