@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js";
 import {
@@ -764,22 +764,16 @@ export function DashboardClient() {
   const selectedIds = useMemo(() => prefs.selectedAccountIds ?? [], [prefs.selectedAccountIds]);
   const cards = Array.isArray(prefs.cards) ? prefs.cards : DEFAULT_DASHBOARD_PREFS.cards;
 
-  const {
-    containerRef,
-    activeDrag,
-    isDraggingAny,
-    itemsToRender,
-    startDrag,
-  } = useDashboardDnd({
-    cards,
-    onReorderCards: (newCards) => {
+  const handleReorderCards = useCallback(
+    (newCards: DashboardCardConfig[]) => {
       qc.setQueryData(["dashboard-prefs"], (old: unknown) => {
         const prev = (old && typeof old === "object" ? old : {}) as Record<string, unknown>;
         return { ...prev, cards: newCards };
       });
       savePrefsMut.mutate({ cards: newCards });
     },
-  });
+    [qc, savePrefsMut],
+  );
 
   const summaryQ = useQuery({
     queryKey: ["dashboard", "summary", currentMonth.start, currentMonth.end],
@@ -1294,96 +1288,26 @@ export function DashboardClient() {
       <DashboardQuickFilterChips />
 
       {/* Draggable & Configurable Dashboard Cards (1 col on Mobile, 2-col Bento Grid on Desktop) */}
-      <div ref={containerRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        {itemsToRender.map((item, index) => {
-          if (item.type === "placeholder") {
-            return (
-              <DashboardDropPlaceholder
-                key={item.key}
-                height={item.height}
-                span={item.span}
-              />
-            );
-          }
-
-          const card = item.card;
-          const cardMetrics = computeMetricsForPeriod(card.periodDays);
-          const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
-          const isCurrent = activeDrag?.key === card.key;
-
-          return (
-            <div
-              key={card.key}
-              id={`card-${card.key}`}
-              data-card-key={card.key}
-              className={cn(
-                "scroll-mt-6 rounded-2xl transition-all duration-200",
-                span === 2 ? "lg:col-span-2" : "lg:col-span-1",
-                isDraggingAny && !isCurrent && "widget-card-recessed",
-              )}
-            >
-              <DashboardCardShell
-                card={card}
-                isFirst={index === 0}
-                isLast={index === itemsToRender.length - 1}
-                configOpen={configOpenKey === card.key}
-                onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
-                onMoveUp={() => stepCardOrder(card.key, -1)}
-                onMoveDown={() => stepCardOrder(card.key, 1)}
-                onUpdate={(patch) => updateCardConfig(card.key, patch)}
-                onRemove={() => removeCard(card.key)}
-                onStartDrag={(e) => startDrag(e, card.key)}
-              >
-                {card.key === "gauges" && (
-                  <WalletGaugesCard
-                    primaryCode={primaryCode}
-                    primaryDecimals={primaryDecimals}
-                    primarySymbol={primary?.symbol}
-                    balance={selectedBalancePrimary}
-                    cashflow={cardMetrics.netCashflow}
-                    outlook={cardMetrics.outlookNext7}
-                    spending={cardMetrics.expenseSum.negated()}
-                    income={cardMetrics.incomeSum}
-                    creditPct={cardMetrics.creditPct}
-                    debtPct={cardMetrics.debtPct}
-                  />
-                )}
-
-                {card.key === "recent_records" && (
-                  <RecentRecordsCard
-                    transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
-                    periodDays={card.periodDays}
-                  />
-                )}
-
-                {card.key === "cashflow_table" && (
-                  <CashFlowTableCard
-                    primaryCode={primaryCode}
-                    primaryDecimals={primaryDecimals}
-                    periodDays={card.periodDays}
-                    metrics={cardMetrics}
-                  />
-                )}
-
-                {card.key === "charts" && (
-                  <ChartsCard
-                    primaryCode={primaryCode}
-                    barData={barData}
-                    trendData={trendData}
-                    loadingTrend={chartQ.isLoading}
-                  />
-                )}
-
-                {card.key === "budgets_goals" && (
-                  <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
-                )}
-
-                <ExtraCard card={card} ctx={extraCtx} />
-              </DashboardCardShell>
-            </div>
-          );
-        })}
-      </div>
+      <DashboardCardsGrid
+        cards={cards}
+        onReorderCards={handleReorderCards}
+        configOpenKey={configOpenKey}
+        setConfigOpenKey={setConfigOpenKey}
+        stepCardOrder={stepCardOrder}
+        updateCardConfig={updateCardConfig}
+        removeCard={removeCard}
+        computeMetricsForPeriod={computeMetricsForPeriod}
+        filteredTransactions={filteredTransactions}
+        primaryCode={primaryCode}
+        primaryDecimals={primaryDecimals}
+        primarySymbol={primary?.symbol}
+        selectedBalancePrimary={selectedBalancePrimary}
+        barData={barData}
+        trendData={trendData}
+        chartLoading={chartQ.isLoading}
+        budgetRows={budgetRows}
+        extraCtx={extraCtx}
+      />
 
       {/* Bottom "Add more cards / Customize Dashboard" bar + ModalSheet */}
       <Card className="flex flex-wrap items-center justify-between gap-3">
@@ -1700,6 +1624,170 @@ export function DashboardClient() {
 }
 
 // ============================================================================
+// DRAGGABLE DASHBOARD CARDS GRID (ISOLATES DRAG STATE & PREVENTS ROOT RE-RENDERS)
+// ============================================================================
+
+interface DashboardCardsGridProps {
+  cards: DashboardCardConfig[];
+  onReorderCards: (newCards: DashboardCardConfig[]) => void;
+  configOpenKey: DashboardCardKey | null;
+  setConfigOpenKey: (key: DashboardCardKey | null) => void;
+  stepCardOrder: (key: DashboardCardKey, delta: -1 | 1) => void;
+  updateCardConfig: (key: DashboardCardKey, patch: Partial<DashboardCardConfig>) => void;
+  removeCard: (key: DashboardCardKey) => void;
+  computeMetricsForPeriod: (days: number) => {
+    days: number;
+    incomeCount: number;
+    expenseCount: number;
+    incomeSum: Decimal;
+    expenseSum: Decimal;
+    netCashflow: Decimal;
+    avgIncomeDay: Decimal;
+    avgExpenseDay: Decimal;
+    avgIncomeRec: Decimal;
+    avgExpenseRec: Decimal;
+    outlookNext7: Decimal;
+    debtPct: number;
+    creditPct: number;
+  };
+  filteredTransactions: Array<Resource<TransactionGroup>>;
+  primaryCode: string;
+  primaryDecimals: number;
+  primarySymbol?: string;
+  selectedBalancePrimary: Decimal;
+  barData: Array<{ name: string; Income: number; Expense: number }>;
+  trendData: Array<{ date: string; Balance: number }>;
+  chartLoading: boolean;
+  budgetRows: Array<{ id: string; name: string; spent: number; limit: number; code: string; decimals?: number }>;
+  extraCtx: ExtraCardContext;
+}
+
+function DashboardCardsGrid({
+  cards,
+  onReorderCards,
+  configOpenKey,
+  setConfigOpenKey,
+  stepCardOrder,
+  updateCardConfig,
+  removeCard,
+  computeMetricsForPeriod,
+  filteredTransactions,
+  primaryCode,
+  primaryDecimals,
+  primarySymbol,
+  selectedBalancePrimary,
+  barData,
+  trendData,
+  chartLoading,
+  budgetRows,
+  extraCtx,
+}: DashboardCardsGridProps) {
+  const {
+    containerRef,
+    activeDrag,
+    isDraggingAny,
+    itemsToRender,
+    startDrag,
+  } = useDashboardDnd({
+    cards,
+    onReorderCards,
+  });
+
+  return (
+    <div ref={containerRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      {itemsToRender.map((item, index) => {
+        if (item.type === "placeholder") {
+          return (
+            <DashboardDropPlaceholder
+              key={item.key}
+              height={item.height}
+              span={item.span}
+            />
+          );
+        }
+
+        const card = item.card;
+        const cardMetrics = computeMetricsForPeriod(card.periodDays);
+        const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
+        const isCurrent = activeDrag?.key === card.key;
+
+        return (
+          <div
+            key={card.key}
+            id={`card-${card.key}`}
+            data-card-key={card.key}
+            className={cn(
+              "scroll-mt-6 rounded-2xl transition-opacity duration-200",
+              span === 2 ? "lg:col-span-2" : "lg:col-span-1",
+              isDraggingAny && !isCurrent && "widget-card-recessed",
+            )}
+          >
+            <DashboardCardShell
+              card={card}
+              isFirst={index === 0}
+              isLast={index === itemsToRender.length - 1}
+              configOpen={configOpenKey === card.key}
+              onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
+              onMoveUp={() => stepCardOrder(card.key, -1)}
+              onMoveDown={() => stepCardOrder(card.key, 1)}
+              onUpdate={(patch) => updateCardConfig(card.key, patch)}
+              onRemove={() => removeCard(card.key)}
+              onStartDrag={(e) => startDrag(e, card.key)}
+            >
+              {card.key === "gauges" && (
+                <WalletGaugesCard
+                  primaryCode={primaryCode}
+                  primaryDecimals={primaryDecimals}
+                  primarySymbol={primarySymbol}
+                  balance={selectedBalancePrimary}
+                  cashflow={cardMetrics.netCashflow}
+                  outlook={cardMetrics.outlookNext7}
+                  spending={cardMetrics.expenseSum.negated()}
+                  income={cardMetrics.incomeSum}
+                  creditPct={cardMetrics.creditPct}
+                  debtPct={cardMetrics.debtPct}
+                />
+              )}
+
+              {card.key === "recent_records" && (
+                <RecentRecordsCard
+                  transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
+                  periodDays={card.periodDays}
+                />
+              )}
+
+              {card.key === "cashflow_table" && (
+                <CashFlowTableCard
+                  primaryCode={primaryCode}
+                  primaryDecimals={primaryDecimals}
+                  periodDays={card.periodDays}
+                  metrics={cardMetrics}
+                />
+              )}
+
+              {card.key === "charts" && (
+                <ChartsCard
+                  primaryCode={primaryCode}
+                  barData={barData}
+                  trendData={trendData}
+                  loadingTrend={chartLoading}
+                />
+              )}
+
+              {card.key === "budgets_goals" && (
+                <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
+              )}
+
+              <ExtraCard card={card} ctx={extraCtx} />
+            </DashboardCardShell>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================================
 // CARD SHELL WITH DRAG HANDLE & 3-DOT CONFIGURATION POPOVER
 // ============================================================================
 
@@ -1748,12 +1836,15 @@ function DashboardCardShell({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span
-            className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none select-none"
+            className="relative flex size-8 sm:size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none select-none -m-1 p-1"
             title="Drag to reorder card"
             aria-label="Drag to reorder card"
             role="button"
             tabIndex={0}
-            onPointerDown={onStartDrag}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              onStartDrag?.(e);
+            }}
           >
             <GripVertical className="size-4" aria-hidden />
           </span>

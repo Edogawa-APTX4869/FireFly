@@ -220,4 +220,50 @@ describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
     // Way below viewport (+2500)
     expect(computeAutoScrollVelocity(2500, top, bottom, 16)).toBe(16);
   });
+
+  it("applies hysteresis deadband when currentDropIndex is provided to eliminate boundary flutter", () => {
+    const siblings: SiblingRectItem[] = [
+      {
+        key: "gauges" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 100, bottom: 300, width: 400, height: 200 }, // midY = 200
+      },
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 320, bottom: 520, width: 400, height: 200 }, // midY = 420
+      },
+    ];
+
+    // Card 0 midY is 200. Hysteresis threshold is 18px.
+    // When currentDropIndex = 0 (we are before card 0):
+    // Pointer crossing 200 slightly (e.g. 210) should NOT switch yet (must reach 200 + 18 = 218)
+    expect(computeTargetDropIndex({ x: 250, y: 210 }, siblings, 0)).toBe(0);
+    // When pointer reaches 218 or above, it switches forward to 1
+    expect(computeTargetDropIndex({ x: 250, y: 220 }, siblings, 0)).toBe(1);
+
+    // Now currentDropIndex = 1 (we are after card 0):
+    // Pointer moving up across 200 slightly (e.g. 190) should NOT switch back yet (must go below 200 - 18 = 182)
+    expect(computeTargetDropIndex({ x: 250, y: 190 }, siblings, 1)).toBe(1);
+    // When pointer moves below 182, it switches back to 0
+    expect(computeTargetDropIndex({ x: 250, y: 175 }, siblings, 1)).toBe(0);
+  });
+
+  it("supports accelerated auto-scroll speeds up to 30px/frame for rapid long-dashboard traversal", () => {
+    const top = 0;
+    const bottom = 1000;
+    const maxSpeed = 30;
+
+    // Boundary check at 80px: 0 speed
+    expect(computeAutoScrollVelocity(80, top, bottom, maxSpeed)).toBe(0);
+
+    // Halfway top at 40px with maxSpeed = 30: -30 * (0.5^1.5) ≈ -10.607
+    const velTop = computeAutoScrollVelocity(40, top, bottom, maxSpeed);
+    expect(velTop).toBeCloseTo(-30 * Math.pow(0.5, 1.5), 3);
+
+    // Full speed at top edge: -30
+    expect(computeAutoScrollVelocity(0, top, bottom, maxSpeed)).toBe(-30);
+
+    // Full speed at bottom edge: +30
+    expect(computeAutoScrollVelocity(1000, top, bottom, maxSpeed)).toBe(30);
+  });
 });
+

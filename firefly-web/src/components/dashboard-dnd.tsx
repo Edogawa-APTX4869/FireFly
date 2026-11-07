@@ -70,10 +70,12 @@ export function computeAutoScrollVelocity(
  * Calculates target drop index among sibling items based on dragged card vertical center.
  * Threshold & smooth displacement: trigger a slot swap when the vertical center of the dragged card
  * crosses 50% of the height of an adjacent card.
+ * When currentDropIndex is provided, a hysteresis deadband is applied to prevent edge jitter/oscillation.
  */
 export function computeTargetDropIndex(
   dragCenter: { x: number; y: number },
   siblingRects: SiblingRectItem[],
+  currentDropIndex?: number,
 ): number {
   if (siblingRects.length === 0) return 0;
 
@@ -98,7 +100,24 @@ export function computeTargetDropIndex(
 
   const closestMidY = closest.rect.top + closest.rect.height * 0.5;
 
-  // Crossing 50% height threshold of adjacent card
+  // Hysteresis deadband: when dragging interactively, require moving past midY +/- 18px
+  // to prevent rapid jitter and fluttering at boundaries
+  if (currentDropIndex !== undefined) {
+    const HYSTERESIS = 18;
+    if (closestIndex === currentDropIndex) {
+      if (dragCenter.y >= closestMidY + HYSTERESIS) {
+        return closestIndex + 1;
+      }
+      return closestIndex;
+    } else if (closestIndex + 1 === currentDropIndex) {
+      if (dragCenter.y < closestMidY - HYSTERESIS) {
+        return closestIndex;
+      }
+      return closestIndex + 1;
+    }
+  }
+
+  // Standard 50% crossing (used by tests & initial entry)
   if (dragCenter.y < closestMidY) {
     return closestIndex;
   }
@@ -180,8 +199,11 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cloneRef = useRef<HTMLElement | null>(null);
-  const autoScrollRafRef = useRef<number | null>(null);
+  const frameRafRef = useRef<number | null>(null);
   const activeDragRef = useRef<ActiveDashboardDrag | null>(null);
+  const activeAnimationsRef = useRef<Map<DashboardCardKey, Animation>>(new Map());
+  const activeScrollSpeedRef = useRef<number>(18);
+  const capturedPointerTargetRef = useRef<{ el: HTMLElement; pointerId: number } | null>(null);
 
   useIsomorphicLayoutEffect(() => {
     activeDragRef.current = activeDrag;
@@ -189,70 +211,15 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
   const pointerCoordsRef = useRef<{ clientX: number; clientY: number }>({ clientX: 0, clientY: 0 });
   const prevRectsRef = useRef<Map<DashboardCardKey, DOMRect> | null>(null);
-  const runAutoScrollLoopRef = useRef<() => void>(() => {});
+  const cachedSiblingRectsRef = useRef<SiblingRectItem[]>([]);
 
   const visibleCards = useMemo(() => cards.filter((c: DashboardCardConfig) => c.visible), [cards]);
 
-  // Record bounding rects before React re-orders DOM for FLIP displacement
-  const recordSiblingRects = useCallback(() => {
-    if (typeof document === "undefined") return;
-    const map = new Map<DashboardCardKey, DOMRect>();
-    for (const card of visibleCards) {
-      const el = document.getElementById(`card-${card.key}`);
-      if (el) {
-        map.set(card.key, el.getBoundingClientRect());
-      }
-    }
-    prevRectsRef.current = map;
-  }, [visibleCards]);
-
-    // FLIP animation: animate sibling cards sliding smoothly when placeholder swaps slots
-  useIsomorphicLayoutEffect(() => {
-    if (!prevRectsRef.current || !activeDrag) return;
-    const prevRects = prevRectsRef.current;
-    prevRectsRef.current = null;
-
-    const prefersReducedMotion =
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
-    for (const card of visibleCards) {
-      if (card.key === activeDrag.key) continue;
-      const el = document.getElementById(`card-${card.key}`);
-      const first = prevRects.get(card.key);
-      if (!el || !first) continue;
-
-      const last = el.getBoundingClientRect();
-      const dx = first.left - last.left;
-      const dy = first.top - last.top;
-
-      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-        el.style.transition = "none";
-        el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(0.985)`;
-        requestAnimationFrame(() => {
-          el.style.transition = "transform 250ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease";
-          el.style.transform = "translate3d(0, 0, 0) scale(0.985)";
-          const onEnd = () => {
-            el.style.transform = "";
-            el.style.transition = "";
-            el.removeEventListener("transitionend", onEnd);
-          };
-          el.addEventListener("transitionend", onEnd);
-          setTimeout(onEnd, 260);
-        });
-      }
-    }
-  }, [activeDrag?.dropIndex, activeDrag?.key, visibleCards]);
-
-  // Continuous Hit-Testing inside auto-scroll loop or pointermove
-  const updateDropTarget = useCallback(
-    (clientX: number, clientY: number) => {
-      const current = activeDragRef.current;
-      if (!current || typeof document === "undefined") return;
-
-      const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== current.key);
-      if (siblings.length === 0) return;
-
+  // Measures resting rects for all visible cards excluding the currently dragged card
+  const measureSiblingRects = useCallback(
+    (excludeKey: DashboardCardKey): SiblingRectItem[] => {
+      if (typeof document === "undefined") return [];
+      const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== excludeKey);
       const siblingRects: SiblingRectItem[] = [];
       for (const s of siblings) {
         const el = document.getElementById(`card-${s.key}`);
@@ -271,6 +238,98 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           });
         }
       }
+      return siblingRects;
+    },
+    [visibleCards],
+  );
+
+  // Record bounding rects before React re-orders DOM for FLIP displacement
+  const recordSiblingRects = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const map = new Map<DashboardCardKey, DOMRect>();
+    for (const card of visibleCards) {
+      const el = document.getElementById(`card-${card.key}`);
+      if (el) {
+        map.set(card.key, el.getBoundingClientRect());
+      }
+    }
+    prevRectsRef.current = map;
+  }, [visibleCards]);
+
+  // FLIP animation: animate sibling cards sliding smoothly when placeholder swaps slots
+  // Uses Web Animations API (el.animate) to run purely on GPU compositor without style pollution
+  useIsomorphicLayoutEffect(() => {
+    if (!prevRectsRef.current || !activeDrag) return;
+    const prevRects = prevRectsRef.current;
+    prevRectsRef.current = null;
+
+    // Immediately cache updated resting rects of sibling cards after React DOM reorder
+    cachedSiblingRectsRef.current = measureSiblingRects(activeDrag.key);
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+
+    for (const card of visibleCards) {
+      if (card.key === activeDrag.key) continue;
+      const el = document.getElementById(`card-${card.key}`);
+      const first = prevRects.get(card.key);
+      if (!el || !first) continue;
+
+      const last = el.getBoundingClientRect();
+      const dx = first.left - last.left;
+      const dy = first.top - last.top;
+
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        // Cancel existing Web Animation if any on this element
+        const existing = activeAnimationsRef.current.get(card.key);
+        if (existing) {
+          existing.cancel();
+        }
+
+        if (typeof el.animate === "function") {
+          const anim = el.animate(
+            [
+              { transform: `translate3d(${dx}px, ${dy}px, 0)` },
+              { transform: "translate3d(0, 0, 0)" },
+            ],
+            {
+              duration: 220,
+              easing: "cubic-bezier(0.2, 0, 0, 1)",
+              fill: "none",
+            },
+          );
+          activeAnimationsRef.current.set(card.key, anim);
+          anim.onfinish = () => {
+            if (activeAnimationsRef.current.get(card.key) === anim) {
+              activeAnimationsRef.current.delete(card.key);
+            }
+          };
+        } else {
+          // Fallback if el.animate is not supported
+          el.style.transition = "none";
+          el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          requestAnimationFrame(() => {
+            el.style.transition = "transform 220ms cubic-bezier(0.2, 0, 0, 1)";
+            el.style.transform = "translate3d(0, 0, 0)";
+            setTimeout(() => {
+              el.style.transform = "";
+              el.style.transition = "";
+            }, 230);
+          });
+        }
+      }
+    }
+  }, [activeDrag?.dropIndex, activeDrag?.key, visibleCards, measureSiblingRects]);
+
+  // Hit-Testing using cached sibling rects (ZERO DOM queries or reflows during frame ticks)
+  const updateDropTarget = useCallback(
+    (clientX: number, clientY: number) => {
+      const current = activeDragRef.current;
+      if (!current) return;
+
+      const siblingRects = cachedSiblingRectsRef.current;
+      if (siblingRects.length === 0) return;
 
       const dragCenterX = clientX - current.pointerOffsetX + current.width * 0.5;
       const dragCenterY = clientY - current.pointerOffsetY + current.height * 0.5;
@@ -278,6 +337,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       const nextTargetIndex = computeTargetDropIndex(
         { x: dragCenterX, y: dragCenterY },
         siblingRects,
+        current.dropIndex,
       );
 
       if (nextTargetIndex !== current.dropIndex) {
@@ -286,17 +346,20 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         setActiveDrag((prev) => (prev ? { ...prev, dropIndex: nextTargetIndex } : null));
       }
     },
-    [visibleCards, recordSiblingRects],
+    [recordSiblingRects],
   );
 
-  // Auto-scroll loop using requestAnimationFrame with continuous hit-testing
-  const runAutoScrollLoop = useCallback(() => {
-    if (!activeDragRef.current || typeof window === "undefined") {
-      autoScrollRafRef.current = null;
-      return;
-    }
+  const runFrameTickRef = useRef<() => void>(() => {});
 
+  // Unified vsync frame loop handling smooth auto-scrolling & hit-testing
+  const runFrameTick = useCallback(() => {
+    frameRafRef.current = null;
+    const current = activeDragRef.current;
+    if (!current || typeof window === "undefined") return;
+
+    const { clientX, clientY } = pointerCoordsRef.current;
     const container = getScrollContainer(containerRef.current);
+
     let containerTop = 0;
     let containerBottom = window.innerHeight;
 
@@ -306,28 +369,71 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       containerBottom = cRect.bottom;
     }
 
-    const { clientX, clientY } = pointerCoordsRef.current;
-    const velocity = computeAutoScrollVelocity(clientY, containerTop, containerBottom, 16);
+    const velocity = computeAutoScrollVelocity(
+      clientY,
+      containerTop,
+      containerBottom,
+      activeScrollSpeedRef.current,
+    );
 
+    let isAutoScrolling = false;
     if (Math.abs(velocity) > 0.05) {
+      isAutoScrolling = true;
+      // Accelerate auto-scroll smoothly up to 30px/frame when held at the edge
+      activeScrollSpeedRef.current = Math.min(30, activeScrollSpeedRef.current + 0.35);
       scrollContainerBy(container, velocity);
-      updateDropTarget(clientX, clientY);
-      autoScrollRafRef.current = requestAnimationFrame(() => runAutoScrollLoopRef.current());
+
+      // Offset cached sibling rects by scroll delta (immutable, instantaneous, 0 reflow)
+      cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
+        ...item,
+        rect: {
+          ...item.rect,
+          top: item.rect.top - velocity,
+          bottom: item.rect.bottom - velocity,
+        },
+      }));
     } else {
-      autoScrollRafRef.current = null;
+      activeScrollSpeedRef.current = 18;
+    }
+
+    updateDropTarget(clientX, clientY);
+
+    if (isAutoScrolling) {
+      frameRafRef.current = requestAnimationFrame(() => runFrameTickRef.current());
     }
   }, [updateDropTarget]);
 
   useIsomorphicLayoutEffect(() => {
-    runAutoScrollLoopRef.current = runAutoScrollLoop;
-  }, [runAutoScrollLoop]);
+    runFrameTickRef.current = runFrameTick;
+  }, [runFrameTick]);
+
+  const scheduleFrameTick = useCallback(() => {
+    if (frameRafRef.current === null) {
+      frameRafRef.current = requestAnimationFrame(() => runFrameTickRef.current());
+    }
+  }, []);
 
   // Clean up drag overlay and active auto-scroll loop
   const cleanupDrag = useCallback(() => {
-    if (autoScrollRafRef.current) {
-      cancelAnimationFrame(autoScrollRafRef.current);
-      autoScrollRafRef.current = null;
+    if (frameRafRef.current !== null) {
+      cancelAnimationFrame(frameRafRef.current);
+      frameRafRef.current = null;
     }
+    if (capturedPointerTargetRef.current) {
+      try {
+        const { el, pointerId } = capturedPointerTargetRef.current;
+        el.releasePointerCapture(pointerId);
+      } catch {}
+      capturedPointerTargetRef.current = null;
+    }
+    // Cancel any active Web Animations on cards
+    activeAnimationsRef.current.forEach((anim) => {
+      try {
+        anim.cancel();
+      } catch {}
+    });
+    activeAnimationsRef.current.clear();
+
     if (cloneRef.current) {
       cloneRef.current.remove();
       cloneRef.current = null;
@@ -336,16 +442,10 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       document.body.style.touchAction = "";
-      // Reset any FLIP inline transforms so cards return to scale(1) cleanly
-      const cardEls = document.querySelectorAll("[data-card-key]");
-      cardEls.forEach((node) => {
-        const el = node as HTMLElement;
-        el.style.transform = "";
-        el.style.transition = "";
-      });
     }
     setActiveDrag(null);
     setIsSettling(false);
+    activeScrollSpeedRef.current = 18;
   }, []);
 
   // Initiate drag from the ⋮⋮ grip handle icon
@@ -369,18 +469,38 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       const pointerOffsetX = startX - initialRect.left;
       const pointerOffsetY = startY - initialRect.top;
 
+      // Pointer capture ensures uninterrupted tracking on touch and rapid pointer movement
+      const handleEl = e.currentTarget as HTMLElement;
+      const pointerId = e.pointerId;
+      try {
+        handleEl.setPointerCapture(pointerId);
+        capturedPointerTargetRef.current = { el: handleEl, pointerId };
+      } catch {}
+
+      // Subtle haptic tick on touch devices
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(15);
+        } catch {}
+      }
+
       let hasExceededThreshold = false;
       let clone: HTMLElement | null = null;
 
+      // Cache sibling resting rects at drag start
+      cachedSiblingRectsRef.current = measureSiblingRects(cardKey);
+
       const handlePointerMove = (moveEv: PointerEvent) => {
+        if (moveEv.cancelable) {
+          moveEv.preventDefault();
+        }
         const currentX = moveEv.clientX;
         const currentY = moveEv.clientY;
         pointerCoordsRef.current = { clientX: currentX, clientY: currentY };
 
-        const dist = Math.hypot(currentX - startX, currentY - startY);
-
         if (!hasExceededThreshold) {
-          if (dist < 4) return;
+          const dist = Math.hypot(currentX - startX, currentY - startY);
+          if (dist < 3) return;
           hasExceededThreshold = true;
 
           // Lift card into clone overlay
@@ -423,16 +543,13 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         }
 
         if (clone) {
-          moveEv.preventDefault();
+          // Instant GPU compositor transform for 0-lag pointer tracking
           const dx = currentX - startX;
           const dy = currentY - startY;
           clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.02)`;
 
-          updateDropTarget(currentX, currentY);
-
-          if (!autoScrollRafRef.current) {
-            autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop);
-          }
+          // Vsync RAF tick for slot hit-testing and auto-scrolling
+          scheduleFrameTick();
         }
       };
 
@@ -448,63 +565,55 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           return;
         }
 
-        if (autoScrollRafRef.current) {
-          cancelAnimationFrame(autoScrollRafRef.current);
-          autoScrollRafRef.current = null;
+        if (frameRafRef.current !== null) {
+          cancelAnimationFrame(frameRafRef.current);
+          frameRafRef.current = null;
         }
 
-        // Settle animation: sibling cards scale back to 1.0 while overlay lands
+        // Settle animation: clone lands directly onto the placeholder
         setIsSettling(true);
 
         const current = activeDragRef.current;
         const placeholder = document.getElementById("dashboard-drop-placeholder");
         const prefersReducedMotion =
           typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const settleDuration = prefersReducedMotion ? 0 : 220;
+        const settleDuration = prefersReducedMotion ? 0 : 200;
+
+        const applyReorder = (dropIdx: number) => {
+          const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== cardKey);
+          const newVisible = [...siblings];
+          const clampedIndex = Math.max(0, Math.min(dropIdx, siblings.length));
+          newVisible.splice(clampedIndex, 0, targetCard);
+
+          const visibleSet = new Set(newVisible.map((c: DashboardCardConfig) => c.key));
+          let vPtr = 0;
+          const nextCards = cards.map((c: DashboardCardConfig) => {
+            if (visibleSet.has(c.key)) {
+              return newVisible[vPtr++]!;
+            }
+            return c;
+          });
+          onReorderCards(nextCards);
+        };
 
         if (placeholder && current && settleDuration > 0) {
           const targetRect = placeholder.getBoundingClientRect();
           const destDx = targetRect.left - current.initialLeft;
           const destDy = targetRect.top - current.initialTop;
 
-          clone.style.transition = "transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease";
+          clone.style.transition = "transform 200ms cubic-bezier(0.2, 0, 0, 1), box-shadow 200ms ease, opacity 180ms ease";
           clone.style.transform = `translate3d(${destDx}px, ${destDy}px, 0) scale(1.0)`;
           clone.style.boxShadow = "var(--tw-shadow, 0 1px 3px 0 rgba(0, 0, 0, 0.1))";
 
           setTimeout(() => {
-            const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== cardKey);
-            const newVisible = [...siblings];
-            const clampedIndex = Math.max(0, Math.min(current.dropIndex, siblings.length));
-            newVisible.splice(clampedIndex, 0, targetCard);
-
-            const visibleSet = new Set(newVisible.map((c: DashboardCardConfig) => c.key));
-            let vPtr = 0;
-            const nextCards = cards.map((c: DashboardCardConfig) => {
-              if (visibleSet.has(c.key)) {
-                return newVisible[vPtr++]!;
-              }
-              return c;
+            applyReorder(current.dropIndex);
+            requestAnimationFrame(() => {
+              cleanupDrag();
             });
-
-            onReorderCards(nextCards);
-            cleanupDrag();
           }, settleDuration);
         } else {
           if (current) {
-            const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== cardKey);
-            const newVisible = [...siblings];
-            const clampedIndex = Math.max(0, Math.min(current.dropIndex, siblings.length));
-            newVisible.splice(clampedIndex, 0, targetCard);
-
-            const visibleSet = new Set(newVisible.map((c: DashboardCardConfig) => c.key));
-            let vPtr = 0;
-            const nextCards = cards.map((c: DashboardCardConfig) => {
-              if (visibleSet.has(c.key)) {
-                return newVisible[vPtr++]!;
-              }
-              return c;
-            });
-            onReorderCards(nextCards);
+            applyReorder(current.dropIndex);
           }
           cleanupDrag();
         }
@@ -536,7 +645,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       window.addEventListener("blur", handlePointerCancel);
       window.addEventListener("keydown", handleKeyDown);
     },
-    [visibleCards, cards, onReorderCards, updateDropTarget, runAutoScrollLoop, cleanupDrag],
+    [visibleCards, cards, onReorderCards, measureSiblingRects, scheduleFrameTick, cleanupDrag],
   );
 
   // Build items array to render in dashboard grid
