@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
   BarChart3,
+  Bell,
   ChevronDown,
   FolderTree,
   LayoutDashboard,
@@ -263,13 +264,166 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function AppShellInner({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
+export function getScreenTitle(pathname: string): string {
+  if (pathname === "/") return "Home";
+  if (pathname.startsWith("/accounts")) return "Accounts";
+  if (pathname.startsWith("/transactions")) return "Records";
+  if (pathname.startsWith("/reports")) return "Reports";
+  if (pathname.startsWith("/budgets")) return "Budgets";
+  if (pathname.startsWith("/categories")) return "Categories";
+  if (pathname.startsWith("/piggy-banks")) return "Piggy Banks";
+  if (pathname.startsWith("/rules")) return "Automation";
+  if (pathname.startsWith("/settings")) return "Settings";
+  if (pathname.startsWith("/new")) return "New Transaction";
+  if (pathname.startsWith("/bills")) return "Bills";
+  if (pathname.startsWith("/subscriptions")) return "Subscriptions";
+  if (pathname.startsWith("/tags")) return "Tags";
+  return "Home";
+}
+
+export interface MobileHeaderProps {
+  title?: string;
+  drawerOpen?: boolean;
+  onOpenMenu?: () => void;
+  onOpenNotifications?: () => void;
+  hasUnreadNotifications?: boolean;
+}
+
+export function MobileTopHeader({
+  title = "Home",
+  drawerOpen = false,
+  onOpenMenu,
+  onOpenNotifications,
+  hasUnreadNotifications = false,
+}: MobileHeaderProps) {
+  return (
+    <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/95 px-2.5 py-1.5 pt-[calc(0.5rem+env(safe-area-inset-top))] backdrop-blur md:hidden">
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Open navigation menu"
+          aria-expanded={drawerOpen}
+          aria-controls="mobile-nav-drawer"
+          className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-fg hover:bg-surface-2 active:scale-95 transition-all"
+        >
+          <Menu className="size-5" />
+        </button>
+        <span className="font-semibold text-base text-fg truncate">
+          {title}
+        </span>
+      </div>
+      <div className="flex items-center">
+        <button
+          type="button"
+          onClick={onOpenNotifications}
+          aria-label="Notifications"
+          className="relative flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:text-fg hover:bg-surface-2 active:scale-95 transition-all"
+        >
+          <Bell className="size-5" />
+          {hasUnreadNotifications && (
+            <span
+              data-testid="notification-badge"
+              className="absolute top-2.5 right-2.5 size-2 rounded-full bg-primary ring-2 ring-surface"
+            />
+          )}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+export interface MobileDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  serverUrl?: string;
+  theme?: string;
+  themeAriaLabel?: string;
+  themeTitle?: string;
+  onCycleTheme?: () => void;
+  children?: React.ReactNode;
+}
+
+export function MobileNavDrawer({
+  isOpen,
+  onClose,
+  serverUrl = "",
+  theme,
+  themeAriaLabel,
+  themeTitle,
+  onCycleTheme,
+  children,
+}: MobileDrawerProps) {
+  useEscapeDismiss(isOpen, onClose, "mobile-nav-drawer");
+  if (!isOpen) return null;
+
+  return (
+    <div id="mobile-nav-drawer" className="fixed inset-0 z-[60] flex md:hidden">
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-200"
+        onClick={onClose}
+        aria-hidden="true"
+        data-testid="drawer-backdrop"
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+        className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <Link href="/" onClick={onClose} className="flex items-center gap-2 text-lg font-bold">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
+              <Wallet className="size-4" aria-hidden />
+            </span>
+            Wallet
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close navigation menu"
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 active:scale-95 transition-all"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+        {children ?? (
+          <Suspense fallback={<div className="flex-1" />}>
+            <SidebarNav onNavigate={onClose} />
+          </Suspense>
+        )}
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3 px-1">
+          <p className="truncate text-xs text-muted" title={serverUrl}>
+            {(serverUrl ?? "").replace(/^https?:\/\//, "")}
+          </p>
+          <button
+            type="button"
+            onClick={onCycleTheme}
+            aria-label={themeAriaLabel}
+            title={themeTitle}
+            className="flex min-h-[48px] min-w-[48px] size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
+          >
+            {theme === "system" && <Monitor className="size-4" aria-hidden />}
+            {theme === "light" && <Sun className="size-4" aria-hidden />}
+            {theme === "dark" && <Moon className="size-4" aria-hidden />}
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+export function AppShellInner({ children, serverUrl }: { children: React.ReactNode; serverUrl: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { theme, resolvedTheme, cycleTheme } = useTheme();
 
   useEscapeDismiss(drawerOpen, () => setDrawerOpen(false), "mobile-nav-drawer");
+  useEscapeDismiss(notificationsOpen, () => setNotificationsOpen(false), "mobile-notifications-dialog");
+
+  const screenTitle = getScreenTitle(pathname);
 
   const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
   const currentLabel = theme === "system" ? `System (${resolvedTheme})` : theme === "light" ? "Light" : "Dark";
@@ -299,74 +453,23 @@ function AppShellInner({ children, serverUrl }: { children: React.ReactNode; ser
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/95 px-3.5 py-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur md:hidden">
-        <Link href="/" className="flex items-center gap-2 text-base font-bold tracking-tight">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
-            <Wallet className="size-4" aria-hidden />
-          </span>
-          Wallet
-        </Link>
-        <div className="flex items-center gap-1.5">
-          <Link
-            href="/reports"
-            aria-label="Statistics & Reports"
-            title="Statistics & Reports"
-            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
-          >
-            <BarChart3 className="size-4" aria-hidden />
-          </Link>
-          <button
-            type="button"
-            onClick={cycleTheme}
-            aria-label={themeAriaLabel}
-            title={themeTitle}
-            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-muted hover:text-fg active:scale-95 transition-all"
-          >
-            {theme === "system" && <Monitor className="size-4" aria-hidden />}
-            {theme === "light" && <Sun className="size-4" aria-hidden />}
-            {theme === "dark" && <Moon className="size-4" aria-hidden />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open full navigation menu"
-            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl border border-border bg-surface-2 text-fg active:scale-95 transition-all"
-          >
-            <Menu className="size-4" />
-          </button>
-        </div>
-      </header>
+      <MobileTopHeader
+        title={screenTitle}
+        drawerOpen={drawerOpen}
+        onOpenMenu={() => setDrawerOpen(true)}
+        onOpenNotifications={() => setNotificationsOpen(true)}
+      />
 
       {/* Mobile slide-over drawer with full Main + Sub menu */}
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs" onClick={() => setDrawerOpen(false)} />
-          <aside className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <Link href="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-2 text-lg font-bold">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-fg shadow-xs">
-                  <Wallet className="size-4" aria-hidden />
-                </span>
-                Wallet
-              </Link>
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(false)}
-                aria-label="Close navigation menu"
-                className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 active:scale-95 transition-all"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-            <Suspense fallback={<div className="flex-1" />}>
-              <SidebarNav onNavigate={() => setDrawerOpen(false)} />
-            </Suspense>
-            <p className="mt-3 truncate border-t border-border pt-3 px-2 text-xs text-muted" title={serverUrl}>
-              {serverUrl.replace(/^https?:\/\//, "")}
-            </p>
-          </aside>
-        </div>
-      )}
+      <MobileNavDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        serverUrl={serverUrl}
+        theme={theme}
+        themeAriaLabel={themeAriaLabel}
+        themeTitle={themeTitle}
+        onCycleTheme={cycleTheme}
+      />
 
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface p-4 md:flex">
@@ -430,11 +533,99 @@ function AppShellInner({ children, serverUrl }: { children: React.ReactNode; ser
         </div>
       </main>
 
+      {/* Notifications Modal Sheet / Dialog */}
+      {notificationsOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="notifications-dialog-title"
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-0 backdrop-blur-xs sm:items-center sm:p-4"
+          onClick={() => setNotificationsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="sheet-up flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-2xl sm:rounded-3xl"
+          >
+            {/* Mobile grab pill */}
+            <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden="true">
+              <span className="h-1.5 w-10 rounded-full bg-border" />
+            </div>
+
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="flex size-8 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                  <Bell className="size-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 id="notifications-dialog-title" className="text-base font-bold text-fg">
+                    Notifications
+                  </h2>
+                  <p className="text-xs text-muted">Alerts and activity updates</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(false)}
+                aria-label="Close notifications"
+                className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-all"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-surface-2 text-muted">
+                <Bell className="size-7 stroke-[1.5] text-primary/80" aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-fg">All caught up!</h3>
+                <p className="mt-1 max-w-xs text-xs text-muted leading-relaxed">
+                  No unread notifications at this time. Upcoming recurring bills, budget alerts, and account activity will appear here.
+                </p>
+              </div>
+
+              <div className="mt-2 flex w-full flex-col gap-2 rounded-xl border border-border/70 bg-surface-2/40 p-3 text-left">
+                <div className="flex items-center justify-between text-xs font-medium text-fg">
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-success animate-pulse" />
+                    System Status
+                  </span>
+                  <span className="text-[11px] font-semibold text-success">
+                    All caught up
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted truncate" title={serverUrl}>
+                  Server: {(serverUrl ?? "").replace(/^https?:\/\//, "")}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(false)}
+                className="mt-2 flex min-h-[48px] h-12 w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-fg hover:opacity-90 active:scale-[0.98] transition-all"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fast-Access Bottom AI Magic Chatbar ("Ramble" voice & text dock) */}
-      <MagicChatbar />
+      <div
+        aria-hidden={drawerOpen}
+        className={cn("transition-opacity duration-150", drawerOpen && "max-md:hidden max-md:pointer-events-none max-md:opacity-0")}
+      >
+        {!drawerOpen && <MagicChatbar />}
+      </div>
 
       {/* BudgetBakers Wallet-style Speed Dial FAB (Templates, Transfer, New Record) */}
-      <SpeedDialFab />
+      <div
+        aria-hidden={drawerOpen}
+        className={cn("transition-opacity duration-150", drawerOpen && "max-md:hidden max-md:pointer-events-none max-md:opacity-0")}
+      >
+        {!drawerOpen && <SpeedDialFab />}
+      </div>
 
       {/* Mobile bottom nav */}
       <nav

@@ -1092,14 +1092,23 @@ export function MagicChatPanel({
  * Persistent Fast-Access Bottom Chatbar mounted across the app shell.
  * STRICT REQUIREMENT: Remains completely hidden unless the AI configuration is completed and verified!
  */
-export function MagicChatbar() {
+export function MagicChatbar({
+  onOpenSheet,
+}: {
+  onOpenSheet?: () => void;
+} = {}) {
   const pathname = usePathname();
   const aiConfigQ = useAiAssistantConfig();
   const [minimized, setMinimized] = useState(false);
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
 
   useEffect(() => {
     function onOpen() {
-      setMinimized(false);
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setMobileSheetOpen(true);
+      } else {
+        setMinimized(false);
+      }
     }
     window.addEventListener("ff:open-magic-chat", onOpen);
     return () => window.removeEventListener("ff:open-magic-chat", onOpen);
@@ -1109,40 +1118,69 @@ export function MagicChatbar() {
   if (pathname === "/new") return null;
   if (!aiConfigQ.data?.enabled || !aiConfigQ.data?.verified) return null;
 
-  if (minimized) {
-    return (
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-3.5 z-40 md:bottom-6 md:left-72">
+  const handleTriggerClick = () => {
+    onOpenSheet?.();
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileSheetOpen(true);
+    } else {
+      setMinimized(false);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("ff:open-magic-chat"));
+      }, 50);
+    }
+  };
+
+  return (
+    <>
+      {/* Mobile Slide-Up ModalSheet (z-50 / modal layer) */}
+      <ModalSheet
+        open={mobileSheetOpen}
+        title="AI Magic Assistant"
+        subtitle="Natural language expenses, voice dictation & receipts"
+        onClose={() => setMobileSheetOpen(false)}
+        maxWidth="max-w-2xl"
+      >
+        <div className="p-1 sm:p-2">
+          <MagicChatPanel mode="inline" onClose={() => setMobileSheetOpen(false)} />
+        </div>
+      </ModalSheet>
+
+      {/* Sleek Trigger Pill on Bottom-Left (opposite the FAB, stratified at z-35) */}
+      <div
+        className={cn(
+          "fixed left-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-35 md:bottom-6 md:left-72",
+          !minimized && "md:hidden",
+          mobileSheetOpen && "hidden",
+        )}
+      >
         <button
           type="button"
-          onClick={() => {
-            setMinimized(false);
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent("ff:open-magic-chat"));
-            }, 50);
-          }}
+          onClick={handleTriggerClick}
+          aria-label="Ask AI Assistant"
           className="flex items-center gap-2 rounded-full border border-primary/30 bg-surface/95 px-3.5 py-2 text-xs font-semibold text-primary shadow-lg backdrop-blur transition-all duration-200 hover:scale-105 active:scale-95 hover:bg-primary-soft hover:shadow-xl"
         >
           <Sparkles className="size-3.5" aria-hidden />
           <span>Ask AI / Ramble</span>
         </button>
       </div>
-    );
-  }
 
-  return (
-    <div className="sheet-up fixed inset-x-2.5 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-2xl md:right-24 md:bottom-5 md:left-72">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setMinimized(true)}
-          aria-label="Minimize AI chatbar to pill"
-          title="Minimize chatbar"
-          className="absolute -top-2.5 -right-2 z-10 flex size-5 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-xs hover:text-fg"
-        >
-          <X className="size-3" aria-hidden />
-        </button>
-        <MagicChatPanel mode="dock" />
-      </div>
-    </div>
+      {/* Desktop Expanded Dock Bar (hidden on mobile to eliminate overlap, stratified at z-35) */}
+      {!minimized && (
+        <div className="sheet-up fixed inset-x-2.5 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-35 mx-auto max-w-2xl hidden md:block md:right-24 md:bottom-5 md:left-72">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMinimized(true)}
+              aria-label="Minimize AI chatbar to pill"
+              title="Minimize chatbar"
+              className="absolute -top-2.5 -right-2 z-10 flex size-5 items-center justify-center rounded-full border border-border bg-surface text-muted shadow-xs hover:text-fg"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+            <MagicChatPanel mode="dock" />
+          </div>
+        </div>
+      )}
+    </>
   );
 }

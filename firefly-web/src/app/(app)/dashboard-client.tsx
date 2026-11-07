@@ -38,7 +38,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/lib/firefly/api";
-import type { BasicSummary, ChartDataSet, Resource, SummaryEntry, TransactionGroup } from "@/lib/firefly/types";
+import type { Account, BasicSummary, ChartDataSet, Resource, SummaryEntry, TransactionGroup } from "@/lib/firefly/types";
 import {
   CARD_CATALOG,
   CARD_GROUP_LABELS,
@@ -101,6 +101,258 @@ function normaliseChartEntries(ds: ChartDataSet): Array<{ date: string; value: n
   }));
 }
 
+export interface DashboardSegmentedTabsProps {
+  activeTab: "accounts" | "budgets";
+  onChange: (tab: "accounts" | "budgets") => void;
+  className?: string;
+}
+
+export function DashboardSegmentedTabs({
+  activeTab,
+  onChange,
+  className,
+}: DashboardSegmentedTabsProps) {
+  return (
+    <AnimatedTabs
+      tabs={[
+        { key: "accounts", label: "Accounts" },
+        { key: "budgets", label: "Budgets & Goals" },
+      ]}
+      activeTab={activeTab}
+      onChange={(key) => onChange(key as "accounts" | "budgets")}
+      className={cn("grid grid-cols-2 sm:w-72", className)}
+      ariaLabel="Dashboard views"
+    />
+  );
+}
+
+export function RecordsQuickActionPill() {
+  return (
+    <Link
+      href="/transactions"
+      className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-2 px-2.5 py-1 text-xs font-semibold text-fg hover:bg-surface-3 transition active:scale-95"
+    >
+      <List className="size-3 text-primary" aria-hidden="true" />
+      <span>Records</span>
+    </Link>
+  );
+}
+
+export interface AccountsSectionHeaderProps {
+  accountCount: number;
+  selectedCount?: number;
+  onSelectAll?: () => void;
+}
+
+export function AccountsSectionHeader({
+  accountCount,
+  selectedCount = 0,
+  onSelectAll,
+}: AccountsSectionHeaderProps) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-0.5">
+      <Link
+        href="/accounts"
+        aria-label={`Accounts list, ${accountCount} accounts total`}
+        className="flex items-center gap-1.5 font-semibold text-fg text-sm sm:text-base hover:text-primary transition"
+      >
+        <span>Accounts</span>
+        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-xs text-muted font-normal">
+          {accountCount}
+        </span>
+        <ChevronRight className="size-4 text-muted" aria-hidden="true" />
+      </Link>
+
+      <div className="flex items-center gap-1.5">
+        {selectedCount > 0 && onSelectAll && (
+          <button
+            type="button"
+            onClick={onSelectAll}
+            className="rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-primary-soft/40 transition-colors"
+          >
+            Select all
+          </button>
+        )}
+        <RecordsQuickActionPill />
+      </div>
+    </div>
+  );
+}
+
+export type AccountGridItem =
+  | Resource<Account>
+  | {
+      id: string;
+      name: string;
+      balance: string | number;
+      currencyCode?: string;
+      currencySymbol?: string;
+      color?: string;
+      iconName?: string;
+      isSelected?: boolean;
+    };
+
+export interface TwoColumnAccountGridProps {
+  accounts: AccountGridItem[];
+  selectedIdSet?: Set<string>;
+  onToggleAccount?: (id: string) => void;
+  showManageLink?: boolean;
+}
+
+export function TwoColumnAccountGrid({
+  accounts,
+  selectedIdSet,
+  onToggleAccount,
+  showManageLink = false,
+}: TwoColumnAccountGridProps) {
+  const meta = useResourceMeta();
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+      {accounts.map((acc, idx) => {
+        const isResource = "attributes" in acc;
+        const id = acc.id;
+        const name = isResource ? acc.attributes.name : acc.name;
+        const rawBalance = isResource ? (acc.attributes.current_balance ?? 0) : acc.balance;
+        const balance = typeof rawBalance === "string" ? rawBalance.replace(/,/g, "") : rawBalance;
+        const currencyCode = isResource ? acc.attributes.currency_code : (acc.currencyCode ?? "USD");
+        const currencySymbol = isResource ? acc.attributes.currency_symbol : (acc.currencySymbol ?? "$");
+        const currencyDecimals = isResource ? acc.attributes.currency_decimal_places : undefined;
+        const isSelected = selectedIdSet ? selectedIdSet.has(id) : Boolean(!isResource && acc.isSelected);
+
+        const customMeta = meta.get("account", id);
+        const inferred = isResource
+          ? inferAccountDefaultStyle(acc.attributes, idx)
+          : { icon: "wallet", color: ("color" in acc && acc.color) || COLOR_PALETTE[idx % COLOR_PALETTE.length] };
+        const bg = ("color" in acc && acc.color) || customMeta?.color || inferred.color || COLOR_PALETTE[idx % COLOR_PALETTE.length];
+
+        return (
+          <div
+            key={id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onToggleAccount?.(id)}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onToggleAccount?.(id)}
+            aria-pressed={isSelected}
+            style={
+              isSelected
+                ? {
+                    borderColor: `${bg}59`,
+                    backgroundColor: `${bg}18`,
+                  }
+                : {
+                    borderColor: `${bg}35`,
+                    backgroundColor: `${bg}10`,
+                  }
+            }
+            className={cn(
+              "group relative flex cursor-pointer flex-col justify-between gap-1.5 rounded-xl border p-2.5 transition-all duration-200 select-none min-w-0 shadow-2xs active:scale-[0.98]",
+              isSelected
+                ? "ring-1 ring-primary/20 shadow-xs"
+                : "border-border/80 bg-surface-2/40 hover:opacity-95",
+            )}
+          >
+            {/* Animated Selected Check Badge */}
+            {isSelected && (
+              <span className="animate-pop-in absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-white shadow-xs">
+                <Check className="size-2.5 stroke-[3]" />
+              </span>
+            )}
+
+            {/* Top Row: Editable Category-Aware Icon + Account Name + Register Link */}
+            <div className="flex items-center justify-between gap-1 min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5 flex-1">
+                <ResourceIconBadge
+                  entityType="account"
+                  entityId={id}
+                  defaultIcon={inferred.icon}
+                  defaultColor={bg}
+                  size="sm"
+                />
+                <p className="truncate text-xs font-semibold text-fg" title={name}>
+                  {name}
+                </p>
+              </div>
+              <Link
+                href={`/accounts/${id}`}
+                onClick={(e) => e.stopPropagation()}
+                title={`Open ${name} transactions`}
+                aria-label={`Open ${name} transactions`}
+                className="flex min-h-[44px] min-w-[44px] -m-2 p-2 shrink-0 items-center justify-center text-muted hover:text-primary active:scale-90 transition-transform"
+              >
+                <span className="flex size-5 items-center justify-center rounded-md border border-border bg-surface/80 hover:border-primary">
+                  <ArrowUpRight className="size-3" />
+                </span>
+              </Link>
+            </div>
+
+            {/* Bottom Row: Fully Responsive Unclipped Balance */}
+            <div className="min-w-0 overflow-hidden">
+              <p className="tabular font-mono text-xs sm:text-sm font-bold tracking-tight text-fg truncate">
+                {typeof balance === "number" || typeof balance === "string" ? (
+                  <Money
+                    amount={balance}
+                    code={currencyCode}
+                    decimals={currencyDecimals}
+                    symbol={currencySymbol}
+                  />
+                ) : (
+                  balance
+                )}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+
+      {showManageLink && (
+        <Link
+          href="/accounts"
+          className="flex min-h-[64px] items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/40 bg-primary-soft/10 p-2.5 text-xs font-semibold text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-soft/25 active:translate-y-0 active:scale-[0.98]"
+        >
+          <span>Manage accounts</span>
+          <Plus className="size-3.5" aria-hidden="true" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+export function DashboardQuickFilterChips() {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
+      <Link
+        href="/rules?tab=recurrences"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 bg-surface px-3 py-1.5 text-xs font-semibold text-fg shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
+      >
+        <Repeat className="size-3.5 text-warning" aria-hidden="true" />
+        <span>Planned payments</span>
+      </Link>
+      <Link
+        href="/accounts?tab=liabilities"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 bg-surface px-3 py-1.5 text-xs font-semibold text-fg shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
+      >
+        <CreditCard className="size-3.5 text-danger" aria-hidden="true" />
+        <span>Debts</span>
+      </Link>
+      <Link
+        href="/budgets"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 bg-surface px-3 py-1.5 text-xs font-semibold text-fg shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
+      >
+        <TrendingUp className="size-3.5 text-success" aria-hidden="true" />
+        <span>Budgets</span>
+      </Link>
+      <Link
+        href="/piggy-banks"
+        className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/80 bg-surface px-3 py-1.5 text-xs font-semibold text-fg shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
+      >
+        <PiggyBank className="size-3.5 text-primary" aria-hidden="true" />
+        <span>Savings Goals</span>
+      </Link>
+    </div>
+  );
+}
+
 export function DashboardClient() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -117,7 +369,6 @@ export function DashboardClient() {
   const [configOpenKey, setConfigOpenKey] = useState<DashboardCardKey | null>(null);
   const [showCardManager, setShowCardManager] = useState(false);
 
-  const meta = useResourceMeta();
   const primaryQ = usePrimaryCurrency();
   const accountsQ = useAccounts("all");
 
@@ -548,15 +799,9 @@ export function DashboardClient() {
             />
           </p>
         </div>
-        <AnimatedTabs
-          tabs={[
-            { key: "accounts", label: "Accounts" },
-            { key: "budgets", label: "Budgets & Goals" },
-          ]}
+        <DashboardSegmentedTabs
           activeTab={topTab}
           onChange={setTopTab}
-          className="grid grid-cols-2 sm:w-72"
-          ariaLabel="Dashboard views"
         />
       </div>
 
@@ -566,29 +811,12 @@ export function DashboardClient() {
       {/* Top Panel: My Accounts in Wallet (Multi-Select Tiles) OR Budgets & Goals */}
       <div key={`top-${topTab}`} className="animate-tab-enter">
         {topTab === "accounts" ? (
-        <Card className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold">My accounts</h2>
-              <p className="text-xs text-muted">
-                Tap to include or exclude from net worth and cards
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {selectedIds.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={selectAllAccounts}>
-                  Select all
-                </Button>
-              )}
-              <Link
-                href="/accounts"
-                aria-label="Open full accounts list"
-                className="flex size-8 items-center justify-center rounded-full border border-border text-primary hover:bg-surface-2"
-              >
-                <ChevronRight className="size-4" />
-              </Link>
-            </div>
-          </div>
+        <Card className="flex flex-col gap-2.5 p-3 sm:p-4 md:p-5">
+          <AccountsSectionHeader
+            accountCount={walletAccounts.length}
+            selectedCount={selectedIds.length}
+            onSelectAll={selectAllAccounts}
+          />
 
           {accountsQ.isLoading ? (
             <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -597,103 +825,16 @@ export function DashboardClient() {
               <Skeleton className="h-16" />
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 sm:gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
-              {walletAccounts.map((acc, idx) => {
-                const isSelected = selectedIdSet.has(acc.id);
-                const customMeta = meta.get("account", acc.id);
-                const inferred = inferAccountDefaultStyle(acc.attributes, idx);
-                const bg = customMeta?.color || inferred.color || COLOR_PALETTE[idx % COLOR_PALETTE.length];
-                return (
-                  <div
-                    key={acc.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => toggleAccountSelection(acc.id)}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleAccountSelection(acc.id)}
-                    aria-pressed={isSelected}
-                    style={
-                      isSelected
-                        ? {
-                            borderColor: bg,
-                            borderLeftWidth: "4px",
-                            backgroundColor: `${bg}14`,
-                          }
-                        : undefined
-                    }
-                    className={cn(
-                      "group relative flex cursor-pointer flex-col justify-between gap-1.5 rounded-xl border p-2 sm:p-2.5 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none min-w-0 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.97]",
-                      isSelected
-                        ? "shadow-xs ring-1 ring-primary/25"
-                        : "border-border bg-surface opacity-55 grayscale-[30%] hover:opacity-90",
-                    )}
-                  >
-                    {/* Animated Selected Check Badge */}
-                    {isSelected && (
-                      <span className="animate-pop-in absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-white shadow-xs">
-                        <Check className="size-2.5 stroke-[3]" />
-                      </span>
-                    )}
-
-                    {/* Top Row: Editable Category-Aware Icon + Account Name + Register Link */}
-                    <div className="flex items-center justify-between gap-1 min-w-0">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <ResourceIconBadge
-                          entityType="account"
-                          entityId={acc.id}
-                          defaultIcon={inferred.icon}
-                          defaultColor={bg}
-                          size="sm"
-                        />
-                        <p className="truncate text-[11px] sm:text-xs font-semibold text-fg" title={acc.attributes.name}>
-                          {acc.attributes.name}
-                        </p>
-                      </div>
-                      <Link
-                        href={`/accounts/${acc.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        title={`Open ${acc.attributes.name} transactions`}
-                        aria-label={`Open ${acc.attributes.name} transactions`}
-                        className="flex size-5 shrink-0 items-center justify-center rounded-md border border-border bg-surface/80 text-muted hover:border-primary hover:text-primary active:scale-90 transition-transform"
-                      >
-                        <ArrowUpRight className="size-3" />
-                      </Link>
-                    </div>
-
-                    {/* Bottom Row: Fully Responsive Unclipped Balance */}
-                    <div className="min-w-0 overflow-hidden">
-                      <p className="tabular font-mono text-[11px] sm:text-xs md:text-sm font-bold tracking-tight text-fg truncate">
-                        <Money
-                          amount={acc.attributes.current_balance ?? 0}
-                          code={acc.attributes.currency_code}
-                          decimals={acc.attributes.currency_decimal_places}
-                          symbol={acc.attributes.currency_symbol}
-                        />
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-
-              <Link
-                href="/accounts"
-                className="flex min-h-16 items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/50 px-2 py-2 text-[11px] sm:text-xs font-semibold text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-soft/40 active:translate-y-0 active:scale-[0.98]"
-              >
-                <span>Manage accounts</span>
-                <Plus className="size-3.5" aria-hidden />
-              </Link>
-            </div>
+            <TwoColumnAccountGrid
+              accounts={walletAccounts}
+              selectedIdSet={selectedIdSet}
+              onToggleAccount={toggleAccountSelection}
+              showManageLink={true}
+            />
           )}
-
-          <div className="flex justify-end pt-1">
-            <Link href="/transactions">
-              <Button variant="secondary" size="sm" className="rounded-xl">
-                <List className="size-4 text-primary" aria-hidden /> Records
-              </Button>
-            </Link>
-          </div>
         </Card>
       ) : (
-        <Card className="flex flex-col gap-4">
+        <Card className="flex flex-col gap-4 p-3 sm:p-4 md:p-5">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold">Budgets & Savings Goals</h2>
             <div className="flex gap-2">
@@ -753,37 +894,8 @@ export function DashboardClient() {
       )}
       </div>
 
-      {/* Horizontal Quick-Action Pills (Planned payments, Debts, Budgets, Piggy Banks, Rules) */}
-      <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar -mx-3.5 px-3.5 sm:mx-0 sm:px-0">
-        <Link
-          href="/rules?tab=recurrences"
-          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
-        >
-          <Repeat className="size-3.5 text-warning" aria-hidden />
-          Planned payments
-        </Link>
-        <a
-          href="#card-liabilities"
-          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
-        >
-          <CreditCard className="size-3.5 text-danger" aria-hidden />
-          Debts & Liabilities
-        </a>
-        <Link
-          href="/budgets"
-          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
-        >
-          <TrendingUp className="size-3.5 text-success" aria-hidden />
-          Budgets
-        </Link>
-        <Link
-          href="/piggy-banks"
-          className="flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-xs font-semibold shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0 active:scale-95 hover:bg-surface-2"
-        >
-          <PiggyBank className="size-3.5 text-primary" aria-hidden />
-          Savings Goals
-        </Link>
-      </div>
+      {/* Horizontal Quick-Action Filter Chips (Planned payments, Debts, Budgets, Savings Goals) */}
+      <DashboardQuickFilterChips />
 
       {/* Draggable & Configurable Dashboard Cards (1 col on Mobile, 2-col Bento Grid on Desktop) */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

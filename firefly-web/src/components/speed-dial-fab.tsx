@@ -16,9 +16,23 @@ import { useEscapeDismiss } from "@/lib/use-escape-dismiss";
  * Tapping "+" expands floating action pills for saved Templates, Transfer, Magic AI Assistant,
  * Income, and Expense. Automatically hides on `/new` so it never blocks form submit buttons.
  */
-export function SpeedDialFab() {
+export function SpeedDialFab({
+  isOpen: controlledOpen,
+  onToggle: controlledOnToggle,
+}: {
+  isOpen?: boolean;
+  onToggle?: () => void;
+} = {}) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (val: boolean | ((prev: boolean) => boolean)) => {
+    if (controlledOnToggle) {
+      controlledOnToggle();
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const aiConfigQ = useAiAssistantConfig();
   const aiReady = Boolean(aiConfigQ.data?.enabled && aiConfigQ.data?.verified);
 
@@ -44,11 +58,15 @@ export function SpeedDialFab() {
       {open && (
         <div
           className="fixed inset-0 z-40 bg-bg/70 backdrop-blur-xs"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            if (controlledOnToggle) controlledOnToggle();
+            else setOpen(false);
+          }}
+          data-testid="fab-backdrop"
         />
       )}
 
-      <div className="fixed right-3.5 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 md:right-8 md:bottom-8">
+      <div className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-2 md:right-8 md:bottom-8">
         {open && (
           <div className="flex flex-col items-end gap-2 fade-in">
             {templates.map((t) => {
@@ -142,11 +160,11 @@ export function SpeedDialFab() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Close quick actions" : "Add transaction or use template"}
+          aria-label={open ? "Close quick actions" : "Add transaction"}
           aria-expanded={open}
           className={cn(
-            "flex size-14 items-center justify-center rounded-full shadow-lg transition-all duration-200 active:scale-95",
-            open ? "bg-fg text-bg" : "bg-primary text-primary-fg hover:opacity-90 hover:scale-105",
+            "flex size-14 items-center justify-center rounded-full bg-primary text-primary-fg shadow-lg transition-all duration-200 hover:scale-105 active:scale-95",
+            open && "bg-fg text-bg",
           )}
         >
           <Plus
