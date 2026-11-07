@@ -355,12 +355,30 @@ export function MobileNavDrawer({
   children,
 }: MobileDrawerProps) {
   useEscapeDismiss(isOpen, onClose, "mobile-nav-drawer");
-  if (!isOpen) return null;
+  const [rendered, setRendered] = useState(isOpen);
+
+  if (isOpen && !rendered) {
+    setRendered(true);
+  }
+
+  useEffect(() => {
+    if (!isOpen && rendered) {
+      const timer = window.setTimeout(() => setRendered(false), 220);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isOpen, rendered]);
+
+  if (!isOpen && !rendered) return null;
+
+  const isClosing = !isOpen && rendered;
 
   return (
     <div id="mobile-nav-drawer" className="fixed inset-0 z-[60] flex md:hidden">
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-200"
+        className={cn(
+          "fixed inset-0 bg-black/50 backdrop-blur-xs",
+          isClosing ? "drawer-backdrop-out pointer-events-none" : "drawer-backdrop-in",
+        )}
         onClick={onClose}
         aria-hidden="true"
         data-testid="drawer-backdrop"
@@ -369,7 +387,10 @@ export function MobileNavDrawer({
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"
-        className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-left duration-200"
+        className={cn(
+          "relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-surface p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl will-change-transform",
+          isClosing ? "drawer-slide-out pointer-events-none" : "drawer-slide-in",
+        )}
       >
         <div className="mb-4 flex items-center justify-between">
           <Link href="/" onClick={onClose} className="flex items-center gap-2 text-lg font-bold">

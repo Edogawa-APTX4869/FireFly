@@ -212,6 +212,18 @@ dialog.sheet::backdrop {
   .sheet-up {
     animation: sheet-up 240ms cubic-bezier(0.16, 1, 0.3, 1);
   }
+  .drawer-slide-in {
+    animation: drawer-slide-in 260ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .drawer-slide-out {
+    animation: drawer-slide-out 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  .drawer-backdrop-in {
+    animation: drawer-backdrop-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .drawer-backdrop-out {
+    animation: drawer-backdrop-out 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
   @keyframes fade-in {
     from {
       opacity: 0;
@@ -222,6 +234,38 @@ dialog.sheet::backdrop {
     from {
       opacity: 0;
       transform: translateY(16px);
+    }
+  }
+  @keyframes drawer-slide-in {
+    from {
+      transform: translate3d(-100%, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  @keyframes drawer-slide-out {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-100%, 0, 0);
+    }
+  }
+  @keyframes drawer-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes drawer-backdrop-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
     }
   }
 }
@@ -248,7 +292,11 @@ dialog.sheet::backdrop {
     opacity: 0.5 !important;
   }
   .fade-in,
-  .sheet-up {
+  .sheet-up,
+  .drawer-slide-in,
+  .drawer-slide-out,
+  .drawer-backdrop-in,
+  .drawer-backdrop-out {
     animation: none !important;
   }
 }

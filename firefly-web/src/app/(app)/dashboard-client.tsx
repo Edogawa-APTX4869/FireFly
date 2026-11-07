@@ -19,8 +19,6 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  ArrowUpRight,
-  Check,
   ChevronRight,
   Columns2,
   CreditCard,
@@ -218,7 +216,7 @@ export function TwoColumnAccountGrid({
         const currencyCode = isResource ? acc.attributes.currency_code : (acc.currencyCode ?? "USD");
         const currencySymbol = isResource ? acc.attributes.currency_symbol : (acc.currencySymbol ?? "$");
         const currencyDecimals = isResource ? acc.attributes.currency_decimal_places : undefined;
-        const isSelected = selectedIdSet ? selectedIdSet.has(id) : Boolean(!isResource && acc.isSelected);
+        const isSelected = selectedIdSet ? selectedIdSet.has(id) : Boolean(isResource || acc.isSelected !== false);
 
         const customMeta = meta.get("account", id);
         const inferred = isResource
@@ -248,42 +246,22 @@ export function TwoColumnAccountGrid({
             className={cn(
               "group relative flex cursor-pointer flex-col justify-between gap-1.5 rounded-xl border p-2.5 transition-all duration-200 select-none min-w-0 shadow-2xs active:scale-[0.98]",
               isSelected
-                ? "ring-1 ring-primary/20 shadow-xs"
-                : "border-border/80 bg-surface-2/40 hover:opacity-95",
+                ? "shadow-xs"
+                : "border-border/80 bg-surface-2/40 opacity-60 grayscale-[25%] hover:opacity-90",
             )}
           >
-            {/* Animated Selected Check Badge */}
-            {isSelected && (
-              <span className="animate-pop-in absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-white shadow-xs">
-                <Check className="size-2.5 stroke-[3]" />
-              </span>
-            )}
-
-            {/* Top Row: Editable Category-Aware Icon + Account Name + Register Link */}
-            <div className="flex items-center justify-between gap-1 min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5 flex-1">
-                <ResourceIconBadge
-                  entityType="account"
-                  entityId={id}
-                  defaultIcon={inferred.icon}
-                  defaultColor={bg}
-                  size="sm"
-                />
-                <p className="truncate text-xs font-semibold text-fg" title={name}>
-                  {name}
-                </p>
-              </div>
-              <Link
-                href={`/accounts/${id}`}
-                onClick={(e) => e.stopPropagation()}
-                title={`Open ${name} transactions`}
-                aria-label={`Open ${name} transactions`}
-                className="flex min-h-[44px] min-w-[44px] -m-2 p-2 shrink-0 items-center justify-center text-muted hover:text-primary active:scale-90 transition-transform"
-              >
-                <span className="flex size-5 items-center justify-center rounded-md border border-border bg-surface/80 hover:border-primary">
-                  <ArrowUpRight className="size-3" />
-                </span>
-              </Link>
+            {/* Top Row: Editable Category-Aware Icon + Account Name */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <ResourceIconBadge
+                entityType="account"
+                entityId={id}
+                defaultIcon={inferred.icon}
+                defaultColor={bg}
+                size="sm"
+              />
+              <p className="truncate text-xs font-semibold text-fg" title={name}>
+                {name}
+              </p>
             </div>
 
             {/* Bottom Row: Fully Responsive Unclipped Balance */}
@@ -366,6 +344,7 @@ export function DashboardClient() {
 
   const [topTab, setTopTab] = useState<"accounts" | "budgets">("accounts");
   const [dragKey, setDragKey] = useState<DashboardCardKey | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<DashboardCardKey | null>(null);
   const [configOpenKey, setConfigOpenKey] = useState<DashboardCardKey | null>(null);
   const [showCardManager, setShowCardManager] = useState(false);
 
@@ -739,6 +718,25 @@ export function DashboardClient() {
     savePrefsMut.mutate({ cards: list });
   }
 
+  function handleTouchDragMove(e: React.TouchEvent, containerAttr: string) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const target = el?.closest(`[${containerAttr}]`) as HTMLElement | null;
+    const targetKey = target?.getAttribute(containerAttr) as DashboardCardKey | null;
+    if (targetKey && targetKey !== dragOverKey) {
+      setDragOverKey(targetKey);
+    }
+  }
+
+  function handleTouchDragEnd() {
+    if (dragKey && dragOverKey && dragKey !== dragOverKey) {
+      moveCard(dragKey, dragOverKey);
+    }
+    setDragKey(null);
+    setDragOverKey(null);
+  }
+
   function updateCardConfig(key: DashboardCardKey, patch: Partial<DashboardCardConfig>) {
     const next = cards.map((c) => (c.key === key ? { ...c, ...patch } : c));
     savePrefsMut.mutate({ cards: next });
@@ -904,21 +902,54 @@ export function DashboardClient() {
           .map((card, index, visibleList) => {
             const cardMetrics = computeMetricsForPeriod(card.periodDays);
             const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
+            const isDragging = dragKey === card.key;
+            const isDropTarget = dragOverKey === card.key && dragKey !== null && dragKey !== card.key;
             return (
               <div
                 key={card.key}
                 id={`card-${card.key}`}
+                data-card-key={card.key}
                 draggable
-                onDragStart={() => setDragKey(card.key)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  if (dragKey) moveCard(dragKey, card.key);
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", card.key);
+                  setDragKey(card.key);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  if (dragKey && dragKey !== card.key) {
+                    setDragOverKey(card.key);
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (dragKey && dragKey !== card.key && dragOverKey !== card.key) {
+                    setDragOverKey(card.key);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverKey((prev) => (prev === card.key ? null : prev));
+                  }
+                }}
+                onDragEnd={() => {
                   setDragKey(null);
+                  setDragOverKey(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragKey && dragKey !== card.key) {
+                    moveCard(dragKey, card.key);
+                  }
+                  setDragKey(null);
+                  setDragOverKey(null);
                 }}
                 className={cn(
-                  "scroll-mt-6 transition-opacity",
+                  "scroll-mt-6 rounded-2xl transition-all duration-200",
                   span === 2 ? "lg:col-span-2" : "lg:col-span-1",
-                  dragKey === card.key && "opacity-50",
+                  isDragging && "scale-[0.98] opacity-50 ring-2 ring-primary/40",
+                  isDropTarget && "ring-2 ring-primary ring-offset-2 ring-offset-bg scale-[1.01]",
                 )}
               >
                 <DashboardCardShell
@@ -931,6 +962,9 @@ export function DashboardClient() {
                   onMoveDown={() => stepCardOrder(card.key, 1)}
                   onUpdate={(patch) => updateCardConfig(card.key, patch)}
                   onRemove={() => removeCard(card.key)}
+                  onTouchStartHandle={() => setDragKey(card.key)}
+                  onTouchMoveHandle={(e) => handleTouchDragMove(e, "data-card-key")}
+                  onTouchEndHandle={handleTouchDragEnd}
                 >
                   {card.key === "gauges" && (
                     <WalletGaugesCard
@@ -1030,15 +1064,65 @@ export function DashboardClient() {
               {cards.map((c, idx) => {
                 const entry = CATALOG_BY_KEY.get(c.key);
                 const span = c.span ?? entry?.defaultSpan ?? 1;
+                const isDragging = dragKey === c.key;
+                const isDropTarget = dragOverKey === c.key && dragKey !== null && dragKey !== c.key;
                 return (
                   <div
                     key={c.key}
+                    data-modal-card-key={c.key}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", c.key);
+                      setDragKey(c.key);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      if (dragKey && dragKey !== c.key) {
+                        setDragOverKey(c.key);
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragKey && dragKey !== c.key && dragOverKey !== c.key) {
+                        setDragOverKey(c.key);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setDragOverKey((prev) => (prev === c.key ? null : prev));
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setDragKey(null);
+                      setDragOverKey(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragKey && dragKey !== c.key) {
+                        moveCard(dragKey, c.key);
+                      }
+                      setDragKey(null);
+                      setDragOverKey(null);
+                    }}
                     className={cn(
-                      "flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-2.5 transition-all sm:p-3",
+                      "flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-2.5 transition-all duration-150 sm:p-3",
                       !c.visible && "opacity-60 bg-surface-2/40",
+                      isDragging && "scale-[0.98] opacity-50 ring-2 ring-primary/40",
+                      isDropTarget && "border-primary bg-primary-soft/20 ring-2 ring-primary",
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg bg-surface-2 text-muted hover:text-fg active:cursor-grabbing touch-none"
+                        title="Drag to reorder"
+                        onTouchStart={() => setDragKey(c.key)}
+                        onTouchMove={(e) => handleTouchDragMove(e, "data-modal-card-key")}
+                        onTouchEnd={handleTouchDragEnd}
+                      >
+                        <GripVertical className="size-4" aria-hidden />
+                      </span>
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs font-bold text-muted">
                         #{idx + 1}
                       </span>
@@ -1169,6 +1253,9 @@ function DashboardCardShell({
   onMoveDown,
   onUpdate,
   onRemove,
+  onTouchStartHandle,
+  onTouchMoveHandle,
+  onTouchEndHandle,
   children,
 }: {
   card: DashboardCardConfig;
@@ -1180,6 +1267,9 @@ function DashboardCardShell({
   onMoveDown: () => void;
   onUpdate: (patch: Partial<DashboardCardConfig>) => void;
   onRemove: () => void;
+  onTouchStartHandle?: (e: React.TouchEvent) => void;
+  onTouchMoveHandle?: (e: React.TouchEvent) => void;
+  onTouchEndHandle?: (e: React.TouchEvent) => void;
   children: React.ReactNode;
 }) {
   const entry = CATALOG_BY_KEY.get(card.key);
@@ -1194,8 +1284,11 @@ function DashboardCardShell({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span
-            className="cursor-grab text-muted hover:text-fg active:cursor-grabbing"
+            className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none"
             title="Drag to reorder card"
+            onTouchStart={onTouchStartHandle}
+            onTouchMove={onTouchMoveHandle}
+            onTouchEnd={onTouchEndHandle}
           >
             <GripVertical className="size-4" aria-hidden />
           </span>

@@ -227,12 +227,14 @@ describe("Mobile UX Redesign E2E & Production Suite (M1-M4)", () => {
     // F2: Mobile Drawer Layering & Stacking
     // ------------------------------------------------------------------------
     describe("F2: Mobile Drawer Layering & Stacking", () => {
-      it("T1.2.1: elevates drawer container to z-[60] with fixed inset and dialog semantics", () => {
+      it("T1.2.1: elevates drawer container to z-[60] with fixed inset, dialog semantics, and slide animation", () => {
         const html = renderWithProviders(<MobileNavDrawer isOpen={true} onClose={() => {}} />);
         expect(html).toContain("z-[60]");
         expect(html).toContain("fixed inset-0");
         expect(html).toContain('role="dialog"');
         expect(html).toContain('aria-modal="true"');
+        expect(html).toContain("drawer-slide-in");
+        expect(html).toContain("drawer-backdrop-in");
       });
 
       it("T1.2.2: suppresses floating chatbar trigger when drawer is active", () => {
@@ -441,10 +443,12 @@ describe("Mobile UX Redesign E2E & Production Suite (M1-M4)", () => {
         expect(html).toContain("background-color:#3b82f6");
       });
 
-      it("T1.6.4: renders category-aware icon and truncated account name", () => {
+      it("T1.6.4: renders category-aware icon and truncated account name without cluttering check or arrow icons", () => {
         const html = renderWithProviders(<TwoColumnAccountGrid accounts={mockAccounts.slice(0, 1)} />);
         expect(html).toContain("Main Checking");
         expect(html).toContain("truncate text-xs font-semibold text-fg");
+        expect(html).not.toContain("Open Main Checking transactions");
+        expect(html).not.toContain("animate-pop-in");
       });
 
       it("T1.6.5: renders bold monospace tabular balance", () => {
