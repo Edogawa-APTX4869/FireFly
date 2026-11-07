@@ -362,6 +362,7 @@ dialog.sheet::backdrop {
   }
   .widget-card-dragging,
   .widget-card-recessed,
+  .widget-card-sibling,
   .widget-drop-placeholder {
     animation: none !important;
     transform: none !important;
@@ -371,12 +372,36 @@ dialog.sheet::backdrop {
 }
 
 /* Dashboard Widget Drag-and-Drop Enhancements */
+body.is-dashboard-dragging,
+html.is-dashboard-dragging {
+  touch-action: none !important;
+  user-select: none !important;
+  overscroll-behavior: none !important;
+}
+
 .widget-card-dragging {
-  box-shadow: 0 24px 36px -6px rgba(15, 23, 42, 0.18), 0 10px 16px -6px rgba(15, 23, 42, 0.1);
+  /* Mobile GPU-optimized single-layer elevation shadow (eliminates heavy multi-pass blur on mobile ARM GPUs) */
+  box-shadow: 0 12px 24px -4px rgba(15, 23, 42, 0.22);
   z-index: 9999;
   cursor: grabbing !important;
   user-select: none;
   pointer-events: none;
+  /* Hardware acceleration & GPU layer promotion */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+  contain: paint;
+}
+
+.widget-card-sibling {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  contain: layout paint;
 }
 
 .widget-card-recessed {
@@ -414,7 +439,7 @@ dialog.sheet::backdrop {
 }
 
 :where(.dark) .widget-card-dragging {
-  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.5), 0 8px 12px -6px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.6);
 }
 
 :where(.dark) .widget-drop-placeholder {

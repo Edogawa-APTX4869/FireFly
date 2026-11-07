@@ -1707,7 +1707,14 @@ function DashboardCardsGrid({
   );
 
   return (
-    <div ref={containerRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+    <div
+      ref={containerRef}
+      style={isDraggingAny ? { touchAction: "none" } : undefined}
+      className={cn(
+        "grid grid-cols-1 items-start gap-4 lg:grid-cols-2",
+        isDraggingAny && "touch-none select-none",
+      )}
+    >
       {itemsToRender.map((item, index) => {
         if (item.type === "placeholder") {
           return (
@@ -1811,7 +1818,8 @@ const DashboardCardItem = React.memo(function DashboardCardItem({
       className={cn(
         "scroll-mt-6 rounded-2xl transition-opacity duration-200",
         span === 2 ? "lg:col-span-2" : "lg:col-span-1",
-        isDraggingAny && !isCurrent && "widget-card-recessed",
+        isDraggingAny && !isCurrent && "widget-card-recessed widget-card-sibling",
+        isDraggingAny && "will-change-transform [backface-visibility:hidden] [transform:translate3d(0,0,0)]",
       )}
     >
       <DashboardCardShell
@@ -1926,6 +1934,7 @@ function DashboardCardShell({
         <div className="flex items-center gap-2">
           <span
             className="relative flex size-8 sm:size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none select-none -m-1 p-1"
+            style={{ touchAction: "none" }}
             title="Drag to reorder card"
             aria-label="Drag to reorder card"
             role="button"

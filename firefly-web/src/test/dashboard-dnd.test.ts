@@ -294,5 +294,106 @@ describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
     // cleanly switches to dropIndex 2
     expect(computeTargetDropIndex({ x: 670, y: 250 }, bentoSiblings, 1)).toBe(2);
   });
+
+  it("handles mobile single-column card shifting and reverse movement with updated geometry", () => {
+    // Initial resting positions in single-column mobile view:
+    // Card 0 (gauges) was lifted. Siblings are Card 1 (recent_records) and Card 2 (charts)
+    // Initially Card 1 is at 250..450 (midY = 350)
+    // Card 2 is at 470..670 (midY = 570)
+    const initialSiblings: SiblingRectItem[] = [
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 16, right: 360, top: 250, bottom: 450, width: 344, height: 200 },
+      },
+      {
+        key: "charts" as DashboardCardKey,
+        rect: { left: 16, right: 360, top: 470, bottom: 670, width: 344, height: 200 },
+      },
+    ];
+
+    // Dragging down past Card 1 (midY 350 + 18 = 368)
+    const newDropIndex = computeTargetDropIndex({ x: 180, y: 380 }, initialSiblings, 0);
+    expect(newDropIndex).toBe(1);
+
+    // After React re-renders and FLIP updates resting positions:
+    // Card 1 shifts UP to slot 0: top 30..230 (midY = 130)
+    // Card 2 remains at slot 2: top 470..670 (midY = 570)
+    const updatedSiblingsAfterShift: SiblingRectItem[] = [
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 16, right: 360, top: 30, bottom: 230, width: 344, height: 200 },
+      },
+      {
+        key: "charts" as DashboardCardKey,
+        rect: { left: 16, right: 360, top: 470, bottom: 670, width: 344, height: 200 },
+      },
+    ];
+
+    // Pointer reversing direction back up towards slot 0:
+    // With updated geometry, Card 1's resting midY is 130.
+    // When pointer moves up past 130 - 18 = 112:
+    expect(computeTargetDropIndex({ x: 180, y: 110 }, updatedSiblingsAfterShift, 1)).toBe(0);
+
+    // Pointer resting between 130 and 470 (e.g. at y = 300) stays stably at dropIndex 1 without flutter:
+    expect(computeTargetDropIndex({ x: 180, y: 300 }, updatedSiblingsAfterShift, 1)).toBe(1);
+
+    // Moving further down past Card 2 (midY 570 + 18 = 588) switches to dropIndex 2:
+    expect(computeTargetDropIndex({ x: 180, y: 600 }, updatedSiblingsAfterShift, 1)).toBe(2);
+  });
+
+  it("maintains stable sibling coordinate offsets during programmatic and native container scrolling", () => {
+    const originalSiblings: SiblingRectItem[] = [
+      {
+        key: "gauges" as DashboardCardKey,
+        rect: { left: 20, right: 380, top: 100, bottom: 300, width: 360, height: 200 },
+      },
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 20, right: 380, top: 320, bottom: 520, width: 360, height: 200 },
+      },
+    ];
+
+    // Scroll container down by 150px
+    const scrollDelta = 150;
+    const scrolledSiblings = originalSiblings.map((item) => ({
+      ...item,
+      rect: {
+        ...item.rect,
+        top: item.rect.top - scrollDelta,
+        bottom: item.rect.bottom - scrollDelta,
+      },
+    }));
+
+    // After scrolling, Card 0's top is -50, bottom is 150 (midY = 50)
+    // Card 1's top is 170, bottom is 370 (midY = 270)
+    expect(scrolledSiblings[0]!.rect.top).toBe(-50);
+    expect(scrolledSiblings[0]!.rect.bottom).toBe(150);
+    expect(scrolledSiblings[1]!.rect.top).toBe(170);
+    expect(scrolledSiblings[1]!.rect.bottom).toBe(370);
+
+    // Pointer at fixed viewport clientY = 200:
+    // Before Card 1 midY (270) -> should target dropIndex 1
+    expect(computeTargetDropIndex({ x: 200, y: 200 }, scrolledSiblings)).toBe(1);
+
+    // Pointer at fixed viewport clientY = 300:
+    // Past Card 1 midY (270) -> should target dropIndex 2
+    expect(computeTargetDropIndex({ x: 200, y: 300 }, scrolledSiblings)).toBe(2);
+  });
+
+  it("handles rapid pointer traversal over multiple cards without skip or undefined index", () => {
+    const fourCards: SiblingRectItem[] = [
+      { key: "gauges" as DashboardCardKey, rect: { left: 10, right: 390, top: 0, bottom: 200, width: 380, height: 200 } },
+      { key: "recent_records" as DashboardCardKey, rect: { left: 10, right: 390, top: 220, bottom: 420, width: 380, height: 200 } },
+      { key: "charts" as DashboardCardKey, rect: { left: 10, right: 390, top: 440, bottom: 640, width: 380, height: 200 } },
+      { key: "cashflow_table" as DashboardCardKey, rect: { left: 10, right: 390, top: 660, bottom: 860, width: 380, height: 200 } },
+    ];
+
+    // Rapid fling from top (y = 50) to very bottom (y = 1200)
+    expect(computeTargetDropIndex({ x: 200, y: 50 }, fourCards, 0)).toBe(0);
+    expect(computeTargetDropIndex({ x: 200, y: 1200 }, fourCards, 0)).toBe(4);
+
+    // Rapid fling from bottom (y = 1200) to very top (y = -200)
+    expect(computeTargetDropIndex({ x: 200, y: -200 }, fourCards, 4)).toBe(0);
+  });
 });
 

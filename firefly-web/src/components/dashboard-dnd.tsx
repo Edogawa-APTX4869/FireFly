@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DashboardCardConfig, DashboardCardKey } from "@/lib/dashboard-cards";
+import { triggerNativeHaptic } from "@/components/capacitor-bridge";
+import { ImpactStyle } from "@capacitor/haptics";
 
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -232,6 +234,8 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
   const activeScrollSpeedRef = useRef<number>(18);
   const capturedPointerTargetRef = useRef<{ el: HTMLElement; pointerId: number } | null>(null);
   const activeScrollListenerRef = useRef<(() => void) | null>(null);
+  const activeTouchMoveListenerRef = useRef<(() => void) | null>(null);
+  const lastKnownScrollRef = useRef<number>(0);
 
   useIsomorphicLayoutEffect(() => {
     activeDragRef.current = activeDrag;
@@ -284,6 +288,28 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     prevRectsRef.current = map;
   }, [visibleCards]);
 
+  // Synchronize sibling rects with scroll offset without duplicate adjustments
+  const syncScrollOffset = useCallback(() => {
+    const container = getScrollContainer(containerRef.current);
+    if (!container || typeof window === "undefined") return;
+    const currScroll =
+      container === window
+        ? window.scrollY
+        : (container as HTMLElement)?.scrollTop || 0;
+    const delta = currScroll - lastKnownScrollRef.current;
+    if (Math.abs(delta) > 0.1) {
+      lastKnownScrollRef.current = currScroll;
+      cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
+        ...item,
+        rect: {
+          ...item.rect,
+          top: item.rect.top - delta,
+          bottom: item.rect.bottom - delta,
+        },
+      }));
+    }
+  }, []);
+
   // FLIP animation: animate sibling cards sliding smoothly when placeholder swaps slots
   // Uses Web Animations API (el.animate) to run purely on GPU compositor without style pollution
   useIsomorphicLayoutEffect(() => {
@@ -293,13 +319,13 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
     const prefersReducedMotion =
       typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
+
+    const nextSiblingRects: SiblingRectItem[] = [];
 
     for (const card of visibleCards) {
       if (card.key === activeDrag.key) continue;
       const el = document.getElementById(`card-${card.key}`);
-      const first = prevRects.get(card.key);
-      if (!el || !first) continue;
+      if (!el) continue;
 
       // Cancel any in-flight Web Animation on this element BEFORE measuring target resting rect
       const existing = activeAnimationsRef.current.get(card.key);
@@ -309,11 +335,27 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       }
 
       const last = el.getBoundingClientRect();
+      nextSiblingRects.push({
+        key: card.key,
+        rect: {
+          top: last.top,
+          bottom: last.bottom,
+          left: last.left,
+          right: last.right,
+          width: last.width,
+          height: last.height,
+        },
+      });
+
+      if (prefersReducedMotion) continue;
+
+      const first = prevRects.get(card.key);
+      if (!first) continue;
+
       const dx = first.left - last.left;
       const dy = first.top - last.top;
 
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-
         if (typeof el.animate === "function") {
           const anim = el.animate(
             [
@@ -347,7 +389,12 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         }
       }
     }
-  }, [activeDrag?.dropIndex, activeDrag?.key, visibleCards, measureSiblingRects]);
+
+    // Maintain stable geometry: update cached sibling rects with true resting positions
+    if (nextSiblingRects.length > 0) {
+      cachedSiblingRectsRef.current = nextSiblingRects;
+    }
+  }, [activeDrag?.dropIndex, activeDrag?.key, visibleCards]);
 
   // Hit-Testing using cached sibling rects (ZERO DOM queries or reflows during frame ticks)
   const updateDropTarget = useCallback(
@@ -370,6 +417,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       if (nextTargetIndex !== current.dropIndex) {
         recordSiblingRects();
         current.dropIndex = nextTargetIndex;
+        triggerNativeHaptic(ImpactStyle.Light).catch(() => {});
         setActiveDrag((prev) => (prev ? { ...prev, dropIndex: nextTargetIndex } : null));
       }
     },
@@ -409,35 +457,8 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       // Accelerate auto-scroll smoothly up to 30px/frame when held at the edge
       activeScrollSpeedRef.current = Math.min(30, activeScrollSpeedRef.current + 0.35);
 
-      const prevScroll =
-        typeof window !== "undefined"
-          ? container === window
-            ? window.scrollY
-            : (container as HTMLElement)?.scrollTop || 0
-          : 0;
-
       scrollContainerBy(container, velocity);
-
-      const currScroll =
-        typeof window !== "undefined"
-          ? container === window
-            ? window.scrollY
-            : (container as HTMLElement)?.scrollTop || 0
-          : 0;
-
-      const actualDelta = currScroll - prevScroll;
-
-      // Only offset if the container actually scrolled (prevents runaway coordinate drift at bounds)
-      if (Math.abs(actualDelta) > 0.1) {
-        cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
-          ...item,
-          rect: {
-            ...item.rect,
-            top: item.rect.top - actualDelta,
-            bottom: item.rect.bottom - actualDelta,
-          },
-        }));
-      }
+      syncScrollOffset();
     } else {
       activeScrollSpeedRef.current = 18;
     }
@@ -447,7 +468,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     if (isAutoScrolling) {
       frameRafRef.current = requestAnimationFrame(() => runFrameTickRef.current());
     }
-  }, [updateDropTarget]);
+  }, [updateDropTarget, syncScrollOffset]);
 
   useIsomorphicLayoutEffect(() => {
     runFrameTickRef.current = runFrameTick;
@@ -469,6 +490,10 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       activeScrollListenerRef.current();
       activeScrollListenerRef.current = null;
     }
+    if (activeTouchMoveListenerRef.current) {
+      activeTouchMoveListenerRef.current();
+      activeTouchMoveListenerRef.current = null;
+    }
     if (capturedPointerTargetRef.current) {
       try {
         const { el, pointerId } = capturedPointerTargetRef.current;
@@ -488,10 +513,16 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       cloneRef.current.remove();
       cloneRef.current = null;
     }
+    if (containerRef.current) {
+      containerRef.current.style.touchAction = "";
+    }
     if (typeof document !== "undefined") {
+      document.body.classList.remove("is-dashboard-dragging");
+      document.documentElement.classList.remove("is-dashboard-dragging");
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
       document.body.style.touchAction = "";
+      document.documentElement.style.touchAction = "";
     }
     setActiveDrag(null);
     setIsSettling(false);
@@ -527,7 +558,19 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         capturedPointerTargetRef.current = { el: handleEl, pointerId };
       } catch {}
 
-      // Subtle haptic tick on touch devices
+      // Attach non-passive touchmove listener with preventDefault immediately to block Android WebView scroll/overscroll gestures
+      const handleTouchMove = (te: TouchEvent) => {
+        if (te.cancelable) {
+          te.preventDefault();
+        }
+      };
+      window.addEventListener("touchmove", handleTouchMove, { passive: false });
+      activeTouchMoveListenerRef.current = () => {
+        window.removeEventListener("touchmove", handleTouchMove);
+      };
+
+      // Subtle haptic tick on touch devices & Android APK
+      triggerNativeHaptic(ImpactStyle.Light).catch(() => {});
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         try {
           navigator.vibrate(15);
@@ -542,7 +585,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
       // Listen to scroll events on container/window to keep cached rects synchronized
       const container = getScrollContainer(containerRef.current);
-      let lastKnownScroll =
+      lastKnownScrollRef.current =
         typeof window !== "undefined"
           ? container === window
             ? window.scrollY
@@ -550,23 +593,8 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           : 0;
 
       const handleContainerScroll = () => {
-        const currScroll =
-          container === window
-            ? window.scrollY
-            : (container as HTMLElement)?.scrollTop || 0;
-        const delta = currScroll - lastKnownScroll;
-        lastKnownScroll = currScroll;
-        if (Math.abs(delta) > 0.1) {
-          cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
-            ...item,
-            rect: {
-              ...item.rect,
-              top: item.rect.top - delta,
-              bottom: item.rect.bottom - delta,
-            },
-          }));
-          scheduleFrameTick();
-        }
+        syncScrollOffset();
+        scheduleFrameTick();
       };
 
       const scrollTarget = container === window ? window : container;
@@ -576,6 +604,13 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           scrollTarget.removeEventListener("scroll", handleContainerScroll);
         };
       }
+
+      const isTouchOrCoarse =
+        typeof window !== "undefined" &&
+        (window.matchMedia("(pointer: coarse)").matches ||
+          "ontouchstart" in window ||
+          navigator.maxTouchPoints > 0);
+      const dragScale = isTouchOrCoarse ? "1.01" : "1.02";
 
       const handlePointerMove = (moveEv: PointerEvent) => {
         if (moveEv.cancelable) {
@@ -605,14 +640,37 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           clone.style.zIndex = "9999";
           clone.style.pointerEvents = "none";
           clone.style.willChange = "transform";
+          clone.style.webkitBackfaceVisibility = "hidden";
+          clone.style.backfaceVisibility = "hidden";
+          clone.style.contain = "paint";
           clone.classList.add("widget-card-dragging");
+
+          // DOM clone optimization for mobile / Android WebView:
+          // Disable SVG shape/text rendering recalculations and freeze all animations/transitions
+          clone.querySelectorAll("svg").forEach((svg) => {
+            svg.setAttribute("shape-rendering", "optimizeSpeed");
+            svg.setAttribute("text-rendering", "optimizeSpeed");
+          });
+          clone.querySelectorAll<HTMLElement>("*").forEach((node) => {
+            if (node.style) {
+              node.style.animation = "none";
+              node.style.transition = "none";
+              node.style.pointerEvents = "none";
+            }
+          });
 
           document.body.appendChild(clone);
           cloneRef.current = clone;
 
+          if (containerRef.current) {
+            containerRef.current.style.touchAction = "none";
+          }
+          document.body.classList.add("is-dashboard-dragging");
+          document.documentElement.classList.add("is-dashboard-dragging");
           document.body.style.userSelect = "none";
           document.body.style.cursor = "grabbing";
           document.body.style.touchAction = "none";
+          document.documentElement.style.touchAction = "none";
 
           setActiveDrag({
             key: cardKey,
@@ -633,7 +691,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           // Instant GPU compositor transform for 0-lag pointer tracking
           const dx = currentX - startX;
           const dy = currentY - startY;
-          clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.02)`;
+          clone.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${dragScale})`;
 
           // Vsync RAF tick for slot hit-testing and auto-scrolling
           scheduleFrameTick();
@@ -646,6 +704,10 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointercancel", handlePointerCancel);
         window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
+        if (activeTouchMoveListenerRef.current) {
+          activeTouchMoveListenerRef.current();
+          activeTouchMoveListenerRef.current = null;
+        }
         handleEl.removeEventListener("lostpointercapture", handlePointerCancel);
 
         if (!hasExceededThreshold || !clone) {
@@ -713,6 +775,10 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointercancel", handlePointerCancel);
         window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
+        if (activeTouchMoveListenerRef.current) {
+          activeTouchMoveListenerRef.current();
+          activeTouchMoveListenerRef.current = null;
+        }
         handleEl.removeEventListener("lostpointercapture", handlePointerCancel);
         cleanupDrag();
       };
@@ -730,7 +796,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       window.addEventListener("blur", handlePointerCancel);
       window.addEventListener("keydown", handleKeyDown);
     },
-    [visibleCards, cards, onReorderCards, measureSiblingRects, scheduleFrameTick, cleanupDrag],
+    [visibleCards, cards, onReorderCards, measureSiblingRects, scheduleFrameTick, cleanupDrag, syncScrollOffset],
   );
 
   // Build items array to render in dashboard grid
