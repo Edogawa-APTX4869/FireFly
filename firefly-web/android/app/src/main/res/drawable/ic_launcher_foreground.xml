@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Wallet upper card slot / flap -->
+    <path
+        android:fillColor="#A5B4FC"
+        android:pathData="M30,41C30,37.69 32.69,35 36,35L72,35C75.31,35 78,37.69 78,41L78,45L36,45C32.69,45 30,47.69 30,51L30,41Z" />
+    <!-- Wallet main white body (48x34 centered inside 66x66 safe zone) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,44L72,44C75.31,44 78,46.69 78,50L78,72C78,75.31 75.31,78 72,78L36,78C32.69,78 30,75.31 30,72L30,50C30,46.69 32.69,44 36,44Z" />
+    <!-- Wallet indigo clasp -->
+    <path
+        android:fillColor="#4338CA"
+        android:pathData="M62,55L78,55L78,67L62,67C58.69,67 56,64.31 56,61C56,57.69 58.69,55 62,55Z" />
+    <!-- Wallet clasp button dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63.5,61m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
+</vector>
