@@ -121,7 +121,7 @@ export function TagsClient() {
         subtitle="Hierarchical tags (Tag → Sub-tag), custom icons, and Pico-style To-Do checklist tags"
       />
 
-      <Card>
+      <div className="rounded-xl border border-border bg-surface p-3.5 sm:p-4 shadow-2xs">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -175,7 +175,7 @@ export function TagsClient() {
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
 
       <ErrorBox error={tagsQ.error} />
 

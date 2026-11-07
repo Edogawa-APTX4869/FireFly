@@ -113,7 +113,7 @@ export function CategoriesClient() {
         subtitle={`Hierarchical categories (Category → Sub-category) · Totals for ${range.label}`}
       />
 
-      <Card>
+      <div className="rounded-xl border border-border bg-surface p-3.5 sm:p-4 shadow-2xs">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -161,7 +161,7 @@ export function CategoriesClient() {
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
 
       <ErrorBox error={categoriesQ.error} />
 

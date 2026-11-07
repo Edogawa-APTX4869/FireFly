@@ -294,7 +294,7 @@ export function TransactionsClient() {
       </div>
 
       {showFilters && (
-        <Card className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 rounded-xl border border-border bg-surface p-3.5 sm:grid-cols-2 lg:grid-cols-4 shadow-2xs">
           <Field label="Account">
             {(id) => (
               <Select
@@ -400,7 +400,7 @@ export function TransactionsClient() {
               />
             )}
           </Field>
-        </Card>
+        </div>
       )}
 
       <ErrorBox error={txQ.error} />

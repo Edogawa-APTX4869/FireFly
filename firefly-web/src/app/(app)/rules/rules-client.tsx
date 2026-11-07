@@ -293,8 +293,8 @@ function RulesSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <Card className="flex flex-wrap items-end justify-between gap-3">
+      {/* Sleek Compact Toolbar */}
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-border bg-surface p-3 text-xs shadow-2xs">
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Test / Run From">
             {(id) => <Input id={id} type="date" value={execStart} onChange={(e) => setExecStart(e.target.value)} className="h-9 text-xs" />}
@@ -317,7 +317,7 @@ function RulesSection() {
             <Plus className="size-4" aria-hidden /> New Rule
           </Button>
         </div>
-      </Card>
+      </div>
 
       {showNewGroup && (
         <Card>

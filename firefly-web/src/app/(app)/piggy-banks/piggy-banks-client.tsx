@@ -122,7 +122,7 @@ export function PiggyBanksClient() {
       />
 
       {showNew && (
-        <Card>
+        <div className="rounded-xl border border-border bg-surface p-3.5 sm:p-4 shadow-2xs">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -176,13 +176,13 @@ export function PiggyBanksClient() {
               </Button>
             </div>
           </form>
-        </Card>
+        </div>
       )}
 
       <ErrorBox error={piggyQ.error} />
 
       {piggyQ.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           <Skeleton className="h-36" />
           <Skeleton className="h-36" />
         </div>
@@ -193,7 +193,7 @@ export function PiggyBanksClient() {
           </EmptyState>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {items.map((p) => {
             const a = p.attributes;
             const cur = Number(a.current_amount || 0);

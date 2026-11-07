@@ -41,8 +41,21 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-2xl border border-border bg-surface p-4 md:p-5", className)} {...props} />;
+export function Card({
+  className,
+  compact = false,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { compact?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-border bg-surface",
+        compact ? "p-3 sm:p-3.5" : "p-3.5 sm:p-4 md:p-4.5",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {

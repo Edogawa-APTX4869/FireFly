@@ -127,7 +127,7 @@ export function BudgetsClient() {
         }
       />
 
-      <Card>
+      <div className="rounded-xl border border-border bg-surface p-3 sm:p-3.5 shadow-2xs">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -150,19 +150,19 @@ export function BudgetsClient() {
             <Plus className="size-4" aria-hidden /> Add budget
           </Button>
         </form>
-      </Card>
+      </div>
 
       <ErrorBox error={budgetsQ.error || limitsQ.error} />
 
       {budgetsQ.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           <Skeleton className="h-36" />
           <Skeleton className="h-36" />
         </div>
       ) : rows.length === 0 ? (
         <EmptyState title="No budgets created yet">Use the form above to add your first monthly budget.</EmptyState>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {rows.map((r) => {
             const pct = r.limit.gt(0) ? r.spent.div(r.limit).mul(100).toNumber() : 0;
             const tone = pct >= 100 ? "danger" : pct >= 80 ? "warning" : "primary";
