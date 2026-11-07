@@ -538,20 +538,6 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
         onCycleTheme={cycleTheme}
       />
 
-      {/* Floating button to restore side menu when collapsed on desktop */}
-      {!desktopSidebarOpen && (
-        <button
-          type="button"
-          onClick={toggleDesktopSidebar}
-          aria-label="Show side menu"
-          title="Show side menu (Hotkey: [ or Ctrl+B)"
-          className="fixed left-3 top-3.5 z-40 hidden md:flex items-center gap-2 rounded-xl border border-border bg-surface/95 px-3 py-2 text-xs font-semibold text-fg shadow-lg backdrop-blur hover:bg-surface-2 hover:border-primary/50 active:scale-95 transition-all"
-        >
-          <PanelLeftOpen className="size-4 text-primary" aria-hidden="true" />
-          <span>Show menu</span>
-        </button>
-      )}
-
       {/* Desktop sidebar */}
       <aside
         className={cn(
