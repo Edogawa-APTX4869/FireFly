@@ -710,7 +710,7 @@ export function MagicChatPanel({
                       key={i}
                       type="button"
                       onClick={() => handleSend(undefined, sample)}
-                      className="rounded-xl border border-border bg-surface-2/70 px-3 py-1.5 text-left text-xs text-fg transition-colors hover:border-primary hover:bg-primary-soft/40"
+                      className="interactive-tap rounded-xl border border-border bg-surface-2/70 px-3 py-1.5 text-left text-xs text-fg transition-all duration-150 hover:border-primary hover:bg-primary-soft/40 active:scale-[0.98]"
                     >
                       &ldquo;{sample}&rdquo;
                     </button>

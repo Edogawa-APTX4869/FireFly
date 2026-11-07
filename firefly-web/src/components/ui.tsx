@@ -20,7 +20,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex cursor-pointer select-none items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]",
+        "inline-flex cursor-pointer select-none items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)] active:scale-[0.97]",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variant === "primary" && "bg-primary text-primary-fg hover:opacity-90 active:opacity-95 shadow-2xs",
@@ -149,6 +149,7 @@ export function Money({
   symbol,
   signed,
   colored,
+  skipCurrency,
   className,
   animated = false,
 }: {
@@ -158,6 +159,7 @@ export function Money({
   symbol?: string | null;
   signed?: boolean;
   colored?: boolean;
+  skipCurrency?: boolean;
   className?: string;
   animated?: boolean;
 }) {
@@ -170,6 +172,7 @@ export function Money({
         symbol={symbol}
         signed={signed}
         colored={colored}
+        skipCurrency={skipCurrency}
         className={className}
       />
     );
@@ -184,7 +187,7 @@ export function Money({
         className,
       )}
     >
-      {formatMoney(amount, code, decimals, symbol, { signed })}
+      {formatMoney(amount, code, decimals, symbol, { signed, skipCurrency })}
     </span>
   );
 }
@@ -297,7 +300,7 @@ export function ModalSheet({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-all"
+            className="flex min-h-[48px] min-w-[48px] size-12 items-center justify-center rounded-xl text-muted hover:bg-surface-2 hover:text-fg active:scale-[0.96] transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]"
           >
             <X className="size-5" />
           </button>

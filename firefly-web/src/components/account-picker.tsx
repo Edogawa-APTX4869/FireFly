@@ -98,7 +98,7 @@ export function AccountPicker({
           setActive(0);
         }}
         className={cn(
-          "flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-left transition-colors",
+          "interactive-tap flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2 text-left transition-all duration-150 active:scale-[0.98]",
           "hover:bg-surface-2 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:outline-none",
         )}
       >

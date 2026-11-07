@@ -85,6 +85,7 @@ export function AnimatedMoney({
   symbol,
   signed,
   colored,
+  skipCurrency,
   className,
   duration = 650,
 }: {
@@ -94,6 +95,7 @@ export function AnimatedMoney({
   symbol?: string | null;
   signed?: boolean;
   colored?: boolean;
+  skipCurrency?: boolean;
   className?: string;
   duration?: number;
 }) {
@@ -113,7 +115,7 @@ export function AnimatedMoney({
         className,
       )}
     >
-      {formatMoney(animatedValue.toFixed(safeDecimals), code, decimals, symbol, { signed })}
+      {formatMoney(animatedValue.toFixed(safeDecimals), code, decimals, symbol, { signed, skipCurrency })}
     </span>
   );
 }

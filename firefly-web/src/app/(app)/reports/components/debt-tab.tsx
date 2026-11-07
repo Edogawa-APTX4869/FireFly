@@ -263,7 +263,7 @@ export function DebtTab({
           </div>
           <Link
             href="/accounts?tab=liabilities"
-            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            className="interactive-tap text-xs font-semibold text-primary hover:underline flex items-center gap-1 active:scale-95 transition-transform"
           >
             <span>Manage accounts</span>
             <ExternalLink className="size-3" />

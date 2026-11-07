@@ -14,7 +14,7 @@ export function formatMoney(
   code?: string | null,
   decimals?: number | null,
   symbol?: string | null,
-  opts: { signed?: boolean } = {},
+  opts: { signed?: boolean; skipCurrency?: boolean } = {},
 ): string {
   let n: number;
   try {
@@ -23,6 +23,23 @@ export function formatMoney(
     n = 0;
   }
   const hasExplicitDecimals = typeof decimals === "number";
+
+  if (opts.skipCurrency) {
+    const key = `decimal|${hasExplicitDecimals ? decimals : "auto"}|${opts.signed}`;
+    let f = fmtCache.get(key);
+    if (!f) {
+      f = new Intl.NumberFormat(undefined, {
+        style: "decimal",
+        ...(hasExplicitDecimals
+          ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals }
+          : {}),
+        signDisplay: opts.signed ? "exceptZero" : "auto",
+      });
+      fmtCache.set(key, f);
+    }
+    return f.format(n);
+  }
+
   const key = `${code}|${hasExplicitDecimals ? decimals : "auto"}|${opts.signed}`;
   let f = fmtCache.get(key);
   if (!f) {

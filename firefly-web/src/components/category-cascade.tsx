@@ -243,7 +243,7 @@ export function CategoryCascadeSelect({
                       : undefined
                   }
                   className={cn(
-                    "flex cursor-pointer items-center gap-1.5 rounded-xl border px-2 py-1 text-xs font-medium transition-all select-none",
+                    "flex cursor-pointer items-center gap-1.5 rounded-xl border px-2 py-1 text-xs font-medium transition-all select-none active:scale-[0.96]",
                     active ? "text-fg shadow-xs" : "border-border bg-surface text-muted hover:border-primary/40 hover:text-fg",
                   )}
                 >
@@ -284,7 +284,7 @@ export function CategoryCascadeSelect({
                         : undefined
                     }
                     className={cn(
-                      "flex cursor-pointer items-center gap-1.5 rounded-xl border px-2 py-1 text-xs font-medium transition-all select-none",
+                      "flex cursor-pointer items-center gap-1.5 rounded-xl border px-2 py-1 text-xs font-medium transition-all select-none active:scale-[0.96]",
                       subActive
                         ? "text-fg shadow-xs"
                         : "border-border bg-surface text-muted hover:border-primary/40 hover:text-fg",

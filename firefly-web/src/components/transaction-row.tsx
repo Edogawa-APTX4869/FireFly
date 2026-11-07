@@ -136,7 +136,7 @@ export function TransactionRow({
           <button
             type="button"
             onClick={() => onEdit(group)}
-            className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform"
+            className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform duration-120 ease-[cubic-bezier(0.16,1,0.3,1)]"
             title="Edit transaction"
             aria-label={`Edit ${first.description}`}
           >
@@ -145,7 +145,7 @@ export function TransactionRow({
         )}
         <Link
           href={buildDuplicateHref(first)}
-          className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform"
+          className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg active:scale-95 transition-transform duration-120 ease-[cubic-bezier(0.16,1,0.3,1)]"
           title="Duplicate transaction"
           aria-label={`Duplicate ${first.description}`}
         >
@@ -155,7 +155,7 @@ export function TransactionRow({
           <button
             type="button"
             onClick={() => onDelete(group.id)}
-            className="rounded-lg p-1 text-muted hover:bg-danger-soft hover:text-danger active:scale-95 transition-transform"
+            className="rounded-lg p-1 text-muted hover:bg-danger-soft hover:text-danger active:scale-95 transition-transform duration-120 ease-[cubic-bezier(0.16,1,0.3,1)]"
             title="Delete transaction"
             aria-label={`Delete ${first.description}`}
           >

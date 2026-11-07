@@ -76,7 +76,7 @@ export function SpeedDialFab({
                   key={t.id}
                   href={`/new?type=${t.type}&template=${encodeURIComponent(t.id)}`}
                   onClick={() => setOpen(false)}
-                  className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+                  className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
                 >
                   <span
                     className="flex size-6 items-center justify-center rounded-full text-white"
@@ -96,7 +96,7 @@ export function SpeedDialFab({
                   setOpen(false);
                   window.dispatchEvent(new CustomEvent("ff:open-magic-chat"));
                 }}
-                className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+                className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
               >
                 <span className="flex size-6 items-center justify-center rounded-full bg-primary-soft text-primary">
                   <Wand2 className="size-3.5" aria-hidden />
@@ -114,7 +114,7 @@ export function SpeedDialFab({
                   window.dispatchEvent(new CustomEvent("ff:open-create-account"));
                 }
               }}
-              className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+              className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
             >
               <span className="flex size-6 items-center justify-center rounded-full bg-primary-soft text-primary">
                 <Landmark className="size-3.5" aria-hidden />
@@ -125,7 +125,7 @@ export function SpeedDialFab({
             <Link
               href="/new?type=transfer"
               onClick={() => setOpen(false)}
-              className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+              className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
             >
               <span className="flex size-6 items-center justify-center rounded-full bg-primary-soft text-primary">
                 <ArrowLeftRight className="size-3.5" aria-hidden />
@@ -136,7 +136,7 @@ export function SpeedDialFab({
             <Link
               href="/new?type=deposit"
               onClick={() => setOpen(false)}
-              className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+              className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
             >
               <span className="flex size-6 items-center justify-center rounded-full bg-success-soft text-success">
                 <ArrowDownLeft className="size-3.5" aria-hidden />
@@ -147,7 +147,7 @@ export function SpeedDialFab({
             <Link
               href="/new?type=withdrawal"
               onClick={() => setOpen(false)}
-              className="flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2"
+              className="interactive-tap flex min-h-[48px] items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 text-sm font-medium text-fg shadow-md transition-colors hover:bg-surface-2 active:scale-[0.97]"
             >
               <span className="flex size-6 items-center justify-center rounded-full bg-danger-soft text-danger">
                 <ArrowUpRight className="size-3.5" aria-hidden />

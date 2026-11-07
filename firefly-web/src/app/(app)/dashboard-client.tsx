@@ -1796,68 +1796,76 @@ function DashboardCardShell({
         </div>
       </div>
 
-      {configOpen && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 p-3 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            {entry?.usesPeriod && (
-              <>
-                <label className="font-medium">Period:</label>
-                <Select
-                  value={String(card.periodDays)}
-                  onChange={(e) => onUpdate({ periodDays: Number(e.target.value) as 7 | 30 | 90 })}
-                  className="h-8 w-28 text-xs"
-                >
-                  <option value="7">Last 7 days</option>
-                  <option value="30">Last 30 days</option>
-                  <option value="90">Last 90 days</option>
-                </Select>
-              </>
-            )}
+      {/* Animated Sliding Settings Drawer (Smooth accordion slide + generous select sizing) */}
+      <div
+        className={cn(
+          "grid transition-all duration-300 ease-out",
+          configOpen ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 pointer-events-none",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 p-3 text-xs shadow-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              {entry?.usesPeriod && (
+                <div className="flex items-center gap-1.5">
+                  <label className="font-semibold text-muted">Period:</label>
+                  <Select
+                    value={String(card.periodDays)}
+                    onChange={(e) => onUpdate({ periodDays: Number(e.target.value) as 7 | 30 | 90 })}
+                    className="h-8 min-w-[130px] w-auto px-2.5 text-xs font-medium"
+                  >
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                  </Select>
+                </div>
+              )}
 
-            {entry?.usesLimit && (
-              <>
-                <label className="ml-2 font-medium">Rows:</label>
-                <Select
-                  value={String(card.recordLimit)}
-                  onChange={(e) => onUpdate({ recordLimit: Number(e.target.value) })}
-                  className="h-8 w-20 text-xs"
-                >
-                  <option value="5">5</option>
-                  <option value="8">8</option>
-                  <option value="12">12</option>
-                </Select>
-              </>
-            )}
+              {entry?.usesLimit && (
+                <div className="flex items-center gap-1.5">
+                  <label className="font-semibold text-muted">Rows:</label>
+                  <Select
+                    value={String(card.recordLimit)}
+                    onChange={(e) => onUpdate({ recordLimit: Number(e.target.value) })}
+                    className="h-8 min-w-[70px] w-auto px-2.5 text-xs font-medium"
+                  >
+                    <option value="5">5</option>
+                    <option value="8">8</option>
+                    <option value="12">12</option>
+                  </Select>
+                </div>
+              )}
 
-            <div className="hidden items-center gap-1.5 lg:flex">
-              <label className="ml-2 font-medium">Width:</label>
-              <Select
-                value={String(card.span ?? entry?.defaultSpan ?? 1)}
-                onChange={(e) => onUpdate({ span: Number(e.target.value) as 1 | 2 })}
-                className="h-8 w-28 text-xs"
-              >
-                <option value="1">Half (1 col)</option>
-                <option value="2">Full (2 cols)</option>
-              </Select>
+              <div className="hidden items-center gap-1.5 lg:flex">
+                <label className="font-semibold text-muted">Width:</label>
+                <Select
+                  value={String(card.span ?? entry?.defaultSpan ?? 1)}
+                  onChange={(e) => onUpdate({ span: Number(e.target.value) as 1 | 2 })}
+                  className="h-8 min-w-[130px] w-auto px-2.5 text-xs font-medium"
+                >
+                  <option value="1">Half (1 col)</option>
+                  <option value="2">Full (2 cols)</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" disabled={isFirst} onClick={onMoveUp}>
+                <ArrowUp className="size-3.5" /> Up
+              </Button>
+              <Button variant="ghost" size="sm" disabled={isLast} onClick={onMoveDown}>
+                <ArrowDown className="size-3.5" /> Down
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => onUpdate({ visible: false })}>
+                <EyeOff className="size-3.5" /> Hide
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onRemove}>
+                <Trash2 className="size-3.5 text-danger" /> Remove
+              </Button>
             </div>
           </div>
-
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" disabled={isFirst} onClick={onMoveUp}>
-              <ArrowUp className="size-3.5" /> Up
-            </Button>
-            <Button variant="ghost" size="sm" disabled={isLast} onClick={onMoveDown}>
-              <ArrowDown className="size-3.5" /> Down
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => onUpdate({ visible: false })}>
-              <EyeOff className="size-3.5" /> Hide
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onRemove}>
-              <Trash2 className="size-3.5 text-danger" /> Remove
-            </Button>
-          </div>
         </div>
-      )}
+      </div>
 
       {children}
     </Card>
@@ -2071,21 +2079,21 @@ function WalletGaugesCard({
             <span className="size-2 rounded-full bg-success" />
             <span className="text-muted">Earned:</span>
             <span className="font-semibold text-fg">
-              <Money amount={income.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} />
+              <Money amount={income.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} skipCurrency />
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-danger" />
             <span className="text-muted">Spent:</span>
             <span className="font-semibold text-fg">
-              <Money amount={spendingAmt.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} />
+              <Money amount={spendingAmt.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} skipCurrency />
             </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-primary" />
             <span className="text-muted">Net:</span>
             <span className={cn("font-semibold", cashflow.gte(0) ? "text-success" : "text-danger")}>
-              <Money amount={cashflow.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} signed />
+              <Money amount={cashflow.toString()} code={primaryCode} decimals={primaryDecimals} symbol={primarySymbol} signed skipCurrency />
             </span>
           </div>
         </div>
@@ -2103,6 +2111,7 @@ function WalletGaugesCard({
               code={primaryCode}
               decimals={primaryDecimals}
               symbol={primarySymbol}
+              skipCurrency
             />
           }
           label="Outlook (7d)"
@@ -2118,6 +2127,7 @@ function WalletGaugesCard({
               code={primaryCode}
               decimals={primaryDecimals}
               symbol={primarySymbol}
+              skipCurrency
             />
           }
           label="Spending"

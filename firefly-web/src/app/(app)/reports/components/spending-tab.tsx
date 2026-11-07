@@ -317,7 +317,7 @@ export function SpendingTab({
               <Link
                 key={cat.name}
                 href={`/transactions?category=${encodeURIComponent(cat.name)}`}
-                className="flex items-center justify-between py-3 px-2 rounded-xl transition-colors hover:bg-surface-2 group"
+                className="interactive-row flex items-center justify-between py-3 px-2 rounded-xl transition-all duration-150 hover:bg-surface-2 active:scale-[0.98] group"
               >
                 <div className="flex items-center gap-3 min-w-0 pr-3">
                   <ResourceIconBadge

@@ -122,7 +122,7 @@ function RankedBars({
           <Link
             key={r.name}
             href={r.href}
-            className="flex flex-col gap-1.5 rounded-xl p-1.5 transition-colors hover:bg-surface-2"
+            className="interactive-row flex flex-col gap-1.5 rounded-xl p-1.5 transition-all duration-150 hover:bg-surface-2 active:scale-[0.98]"
           >
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2 truncate font-medium">
@@ -222,7 +222,7 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
             <li key={`${g.id}-${i}`}>
               <Link
                 href={`/transactions?query=${encodeURIComponent(s.description)}`}
-                className="flex items-center justify-between gap-2 rounded-lg px-1 py-2 text-sm hover:bg-surface-2"
+                className="interactive-row flex items-center justify-between gap-2 rounded-lg px-1.5 py-2 text-sm transition-all duration-150 hover:bg-surface-2 active:scale-[0.98]"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{s.description}</span>
@@ -378,7 +378,7 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
               <li key={b.id}>
                 <Link
                   href="/rules?tab=bills"
-                  className="flex items-center justify-between gap-2 rounded-lg px-1 py-2 text-sm hover:bg-surface-2"
+                  className="interactive-row flex items-center justify-between gap-2 rounded-lg px-1.5 py-2 text-sm transition-all duration-150 hover:bg-surface-2 active:scale-[0.98]"
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{a.name}</span>
@@ -414,7 +414,7 @@ export function ExtraCard({ card, ctx }: { card: DashboardCardConfig; ctx: Extra
             const target = Number(a.target_amount || 0);
             const pct = target > 0 ? Math.min(100, Math.round((cur / target) * 100)) : 0;
             return (
-              <Link key={p.id} href="/piggy-banks" className="flex flex-col gap-1.5 rounded-xl p-1.5 hover:bg-surface-2">
+              <Link key={p.id} href="/piggy-banks" className="interactive-row flex flex-col gap-1.5 rounded-xl p-1.5 transition-all duration-150 hover:bg-surface-2 active:scale-[0.98]">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium">
                     <ResourceIconBadge entityType="piggy" entityId={p.id} defaultIcon="PiggyBank" size="sm" />

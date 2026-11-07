@@ -140,14 +140,51 @@ dialog.sheet::backdrop {
 /* Card interactive physics (Smooth hover lift and tactile press) */
 .card-hover-spring {
   cursor: pointer;
-  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease, border-color 150ms ease, background-color 150ms ease;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms ease, border-color 150ms ease, background-color 150ms ease;
   will-change: transform, box-shadow;
 }
 .card-hover-spring:hover {
-  transform: translate3d(0, -3px, 0);
+  transform: translate3d(0, -2px, 0);
 }
-.card-hover-spring:active {
-  transform: translate3d(0, 0, 0) scale(0.985);
+.card-hover-spring:active,
+.group:active .card-hover-spring {
+  transform: translate3d(0, 0, 0) scale(0.97);
+  transition-duration: 75ms;
+}
+
+/* Universal tactile click & tap micro-feedback across all interactive controls */
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"]),
+  [role="radio"]:not([aria-disabled="true"]),
+  .interactive-tap,
+  .interactive-row,
+  .interactive-chip,
+  .interactive-card {
+    transition: transform 130ms cubic-bezier(0.16, 1, 0.3, 1),
+                background-color 150ms ease,
+                border-color 150ms ease,
+                box-shadow 150ms ease,
+                opacity 150ms ease;
+    will-change: transform;
+  }
+
+  button:active:not(:disabled),
+  [role="button"]:active:not([aria-disabled="true"]),
+  [role="tab"]:active:not([aria-disabled="true"]),
+  [role="option"]:active:not([aria-disabled="true"]),
+  [role="menuitem"]:active:not([aria-disabled="true"]),
+  [role="radio"]:active:not([aria-disabled="true"]),
+  .interactive-tap:active,
+  .interactive-row:active,
+  .interactive-chip:active,
+  .interactive-card:active {
+    transform: scale(0.97);
+    transition-duration: 75ms;
+  }
 }
 
 /* Tab content smooth entry animation (fade and slight translate on GPU compositor) */
@@ -272,6 +309,33 @@ dialog.sheet::backdrop {
 
 /* Accessibility: Safe graceful degradation for reduced motion */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active:not(:disabled),
+  [role="button"]:active:not([aria-disabled="true"]),
+  [role="tab"]:active:not([aria-disabled="true"]),
+  [role="option"]:active:not([aria-disabled="true"]),
+  [role="menuitem"]:active:not([aria-disabled="true"]),
+  [role="radio"]:active:not([aria-disabled="true"]),
+  .interactive-tap:active,
+  .interactive-row:active,
+  .interactive-chip:active,
+  .interactive-card:active,
+  .card-hover-spring,
+  .card-hover-spring:hover,
+  .card-hover-spring:active,
+  .group:active .card-hover-spring,
+  [class*="active:scale"]:active,
+  [class*="hover:scale"]:hover {
+    transform: none !important;
+    transition: none !important;
+  }
   .accordion-wrapper {
     transition: none !important;
   }
@@ -283,10 +347,6 @@ dialog.sheet::backdrop {
     opacity: 1 !important;
     transform: none !important;
   }
-  .card-hover-spring {
-    transform: none !important;
-    transition: border-color 150ms ease, background-color 150ms ease !important;
-  }
   .animate-voice-ripple {
     animation: none !important;
     opacity: 0.5 !important;
@@ -296,9 +356,72 @@ dialog.sheet::backdrop {
   .drawer-slide-in,
   .drawer-slide-out,
   .drawer-backdrop-in,
-  .drawer-backdrop-out {
+  .drawer-backdrop-out,
+  .animate-placeholder-enter {
     animation: none !important;
   }
+  .widget-card-dragging,
+  .widget-card-recessed,
+  .widget-drop-placeholder {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Dashboard Widget Drag-and-Drop Enhancements */
+.widget-card-dragging {
+  transform: scale(1.02);
+  box-shadow: 0 20px 30px -5px rgba(15, 23, 42, 0.14), 0 8px 12px -6px rgba(15, 23, 42, 0.08);
+  z-index: 50;
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.widget-card-recessed {
+  transform: scale(0.985);
+  opacity: 0.92;
+  transition: transform 250ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease;
+}
+
+.widget-drop-placeholder {
+  border: 2px dashed #6366f1;
+  background-color: rgba(99, 102, 241, 0.04);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: height 200ms ease, transform 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes placeholder-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-placeholder-enter {
+  animation: placeholder-enter 150ms ease-out forwards;
+}
+
+:where(.dark) .widget-card-dragging {
+  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.5), 0 8px 12px -6px rgba(0, 0, 0, 0.35);
+}
+
+:where(.dark) .widget-drop-placeholder {
+  border-color: var(--primary);
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary);
 }
 
 /* Accessibility: WCAG 2.5.5 / 2.5.8 interactive touch target compliance (>= 48px x 48px) */

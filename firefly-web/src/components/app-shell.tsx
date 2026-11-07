@@ -190,7 +190,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                "interactive-tap flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.98]",
                 active ? "bg-primary-soft text-primary" : "text-muted hover:bg-surface-2 hover:text-fg",
               )}
             >
@@ -214,7 +214,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   setOpenMap((m) => ({ ...m, [group.key]: true }));
                   onNavigate?.();
                 }}
-                className="flex flex-1 items-center gap-3 py-2 pl-3 pr-1 text-sm font-semibold"
+                className="interactive-tap flex flex-1 items-center gap-3 py-2 pl-3 pr-1 text-sm font-semibold active:scale-[0.98] transition-transform"
               >
                 <group.icon className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{group.label}</span>
@@ -224,7 +224,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={() => setOpenMap((m) => ({ ...m, [group.key]: !isOpen }))}
                 aria-label={`Toggle ${group.label} submenu`}
                 aria-expanded={isOpen}
-                className="rounded-lg p-2 hover:bg-surface-2/80 transition-colors"
+                className="rounded-lg p-2 hover:bg-surface-2/80 transition-all active:scale-90"
               >
                 <ChevronDown
                   className={cn("size-3.5 transition-transform duration-200 ease-out", isOpen ? "rotate-0" : "-rotate-90")}
@@ -245,7 +245,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                           onClick={onNavigate}
                           aria-current={childActive ? "page" : undefined}
                           className={cn(
-                            "block rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                            "interactive-tap block rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-150 active:scale-[0.98]",
                             childActive
                               ? "bg-primary-soft font-semibold text-primary"
                               : "text-muted hover:bg-surface-2 hover:text-fg",
@@ -580,7 +580,7 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
         </div>
         <Link
           href="/new?type=withdrawal"
-          className="mb-4 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-fg hover:opacity-90 active:scale-[0.98] transition-all"
+          className="mb-4 flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-fg hover:opacity-90 active:scale-[0.97] transition-all duration-150 ease-[cubic-bezier(0.16,1,0.3,1)]"
         >
           <Plus className="size-4" aria-hidden /> New transaction
         </Link>
@@ -633,19 +633,19 @@ export function AppShellInner({ children, serverUrl }: { children: React.ReactNo
               </button>
               <div className="h-4 w-px bg-border" aria-hidden="true" />
               <span>Shortcuts:</span>
-              <Link href="/new?type=withdrawal" className="inline-flex items-center gap-1 hover:text-fg">
+              <Link href="/new?type=withdrawal" className="interactive-tap inline-flex items-center gap-1 hover:text-fg transition-all active:scale-95">
                 <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">N</kbd> Expense
               </Link>
-              <Link href="/new?type=transfer" className="inline-flex items-center gap-1 hover:text-fg">
+              <Link href="/new?type=transfer" className="interactive-tap inline-flex items-center gap-1 hover:text-fg transition-all active:scale-95">
                 <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">T</kbd> Transfer
               </Link>
-              <Link href="/new?type=deposit" className="inline-flex items-center gap-1 hover:text-fg">
+              <Link href="/new?type=deposit" className="interactive-tap inline-flex items-center gap-1 hover:text-fg transition-all active:scale-95">
                 <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">I</kbd> Income
               </Link>
-              <Link href="/transactions" className="inline-flex items-center gap-1 hover:text-fg">
+              <Link href="/transactions" className="interactive-tap inline-flex items-center gap-1 hover:text-fg transition-all active:scale-95">
                 <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">/</kbd> Search records
               </Link>
-              <Link href="/reports" className="inline-flex items-center gap-1 hover:text-fg">
+              <Link href="/reports" className="interactive-tap inline-flex items-center gap-1 hover:text-fg transition-all active:scale-95">
                 <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">S</kbd> Reports
               </Link>
             </div>
