@@ -265,5 +265,34 @@ describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
     // Full speed at bottom edge: +30
     expect(computeAutoScrollVelocity(1000, top, bottom, maxSpeed)).toBe(30);
   });
+
+  it("smoothly transitions horizontally across columns in 2-column bento without getting trapped", () => {
+    const bentoSiblings: SiblingRectItem[] = [
+      // Row 0 Col 1: Gauges (midX: 250, midY: 200)
+      {
+        key: "gauges" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 100, bottom: 300, width: 400, height: 200 },
+      },
+      // Row 0 Col 2: Recent Records (midX: 670, midY: 200)
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 470, right: 870, top: 100, bottom: 300, width: 400, height: 200 },
+      },
+    ];
+
+    // Card 1 is at index 1.
+    // When currentDropIndex = 1 (after Card 0, before Card 1):
+    // Moving horizontally to Card 0 at y = 190 (which is in the upper half of Card 0)
+    // MUST cleanly switch back to dropIndex 0 without getting trapped by Y hysteresis
+    expect(computeTargetDropIndex({ x: 250, y: 190 }, bentoSiblings, 1)).toBe(0);
+
+    // Moving horizontally into Col 2 at y = 190 (upper half of Card 1)
+    // cleanly switches to dropIndex 1
+    expect(computeTargetDropIndex({ x: 670, y: 190 }, bentoSiblings, 0)).toBe(1);
+
+    // Moving to bottom half of Card 1 at y = 250 (lower half of Card 1)
+    // cleanly switches to dropIndex 2
+    expect(computeTargetDropIndex({ x: 670, y: 250 }, bentoSiblings, 1)).toBe(2);
+  });
 });
 

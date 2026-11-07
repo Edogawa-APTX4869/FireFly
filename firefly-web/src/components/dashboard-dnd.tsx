@@ -79,7 +79,7 @@ export function computeTargetDropIndex(
 ): number {
   if (siblingRects.length === 0) return 0;
 
-  // Find the sibling whose center is closest to dragCenter
+  // Find the sibling whose center is closest to dragCenter in 2D Euclidean space
   let closestIndex = 0;
   let minDistanceSq = Number.POSITIVE_INFINITY;
 
@@ -104,16 +104,43 @@ export function computeTargetDropIndex(
   // to prevent rapid jitter and fluttering at boundaries
   if (currentDropIndex !== undefined) {
     const HYSTERESIS = 18;
-    if (closestIndex === currentDropIndex) {
-      if (dragCenter.y >= closestMidY + HYSTERESIS) {
+
+    // Detect if this sibling shares a row with another sibling (2-column layout)
+    const isMultiColumn = siblingRects.some(
+      (other, idx) => idx !== closestIndex && Math.abs(other.rect.top - closest.rect.top) < 60,
+    );
+
+    if (isMultiColumn) {
+      // In a multi-column row, check if the pointer is horizontally aligned with the closest card
+      const inClosestHorizontal =
+        dragCenter.x >= closest.rect.left - 20 && dragCenter.x <= closest.rect.right + 20;
+
+      if (inClosestHorizontal) {
+        if (closestIndex === currentDropIndex) {
+          if (dragCenter.y >= closestMidY + HYSTERESIS) {
+            return closestIndex + 1;
+          }
+          return closestIndex;
+        } else if (closestIndex + 1 === currentDropIndex) {
+          if (dragCenter.y < closestMidY - HYSTERESIS || dragCenter.y < closestMidY) {
+            return closestIndex;
+          }
+          return closestIndex + 1;
+        }
+      }
+    } else {
+      // Single-column layout
+      if (closestIndex === currentDropIndex) {
+        if (dragCenter.y >= closestMidY + HYSTERESIS) {
+          return closestIndex + 1;
+        }
+        return closestIndex;
+      } else if (closestIndex + 1 === currentDropIndex) {
+        if (dragCenter.y < closestMidY - HYSTERESIS) {
+          return closestIndex;
+        }
         return closestIndex + 1;
       }
-      return closestIndex;
-    } else if (closestIndex + 1 === currentDropIndex) {
-      if (dragCenter.y < closestMidY - HYSTERESIS) {
-        return closestIndex;
-      }
-      return closestIndex + 1;
     }
   }
 
@@ -204,6 +231,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
   const activeAnimationsRef = useRef<Map<DashboardCardKey, Animation>>(new Map());
   const activeScrollSpeedRef = useRef<number>(18);
   const capturedPointerTargetRef = useRef<{ el: HTMLElement; pointerId: number } | null>(null);
+  const activeScrollListenerRef = useRef<(() => void) | null>(null);
 
   useIsomorphicLayoutEffect(() => {
     activeDragRef.current = activeDrag;
@@ -263,9 +291,6 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     const prevRects = prevRectsRef.current;
     prevRectsRef.current = null;
 
-    // Immediately cache updated resting rects of sibling cards after React DOM reorder
-    cachedSiblingRectsRef.current = measureSiblingRects(activeDrag.key);
-
     const prefersReducedMotion =
       typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReducedMotion) return;
@@ -276,16 +301,18 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       const first = prevRects.get(card.key);
       if (!el || !first) continue;
 
+      // Cancel any in-flight Web Animation on this element BEFORE measuring target resting rect
+      const existing = activeAnimationsRef.current.get(card.key);
+      if (existing) {
+        existing.cancel();
+        activeAnimationsRef.current.delete(card.key);
+      }
+
       const last = el.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
 
       if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
-        // Cancel existing Web Animation if any on this element
-        const existing = activeAnimationsRef.current.get(card.key);
-        if (existing) {
-          existing.cancel();
-        }
 
         if (typeof el.animate === "function") {
           const anim = el.animate(
@@ -381,17 +408,36 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       isAutoScrolling = true;
       // Accelerate auto-scroll smoothly up to 30px/frame when held at the edge
       activeScrollSpeedRef.current = Math.min(30, activeScrollSpeedRef.current + 0.35);
+
+      const prevScroll =
+        typeof window !== "undefined"
+          ? container === window
+            ? window.scrollY
+            : (container as HTMLElement)?.scrollTop || 0
+          : 0;
+
       scrollContainerBy(container, velocity);
 
-      // Offset cached sibling rects by scroll delta (immutable, instantaneous, 0 reflow)
-      cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
-        ...item,
-        rect: {
-          ...item.rect,
-          top: item.rect.top - velocity,
-          bottom: item.rect.bottom - velocity,
-        },
-      }));
+      const currScroll =
+        typeof window !== "undefined"
+          ? container === window
+            ? window.scrollY
+            : (container as HTMLElement)?.scrollTop || 0
+          : 0;
+
+      const actualDelta = currScroll - prevScroll;
+
+      // Only offset if the container actually scrolled (prevents runaway coordinate drift at bounds)
+      if (Math.abs(actualDelta) > 0.1) {
+        cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
+          ...item,
+          rect: {
+            ...item.rect,
+            top: item.rect.top - actualDelta,
+            bottom: item.rect.bottom - actualDelta,
+          },
+        }));
+      }
     } else {
       activeScrollSpeedRef.current = 18;
     }
@@ -418,6 +464,10 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     if (frameRafRef.current !== null) {
       cancelAnimationFrame(frameRafRef.current);
       frameRafRef.current = null;
+    }
+    if (activeScrollListenerRef.current) {
+      activeScrollListenerRef.current();
+      activeScrollListenerRef.current = null;
     }
     if (capturedPointerTargetRef.current) {
       try {
@@ -490,6 +540,43 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       // Cache sibling resting rects at drag start
       cachedSiblingRectsRef.current = measureSiblingRects(cardKey);
 
+      // Listen to scroll events on container/window to keep cached rects synchronized
+      const container = getScrollContainer(containerRef.current);
+      let lastKnownScroll =
+        typeof window !== "undefined"
+          ? container === window
+            ? window.scrollY
+            : (container as HTMLElement)?.scrollTop || 0
+          : 0;
+
+      const handleContainerScroll = () => {
+        const currScroll =
+          container === window
+            ? window.scrollY
+            : (container as HTMLElement)?.scrollTop || 0;
+        const delta = currScroll - lastKnownScroll;
+        lastKnownScroll = currScroll;
+        if (Math.abs(delta) > 0.1) {
+          cachedSiblingRectsRef.current = cachedSiblingRectsRef.current.map((item) => ({
+            ...item,
+            rect: {
+              ...item.rect,
+              top: item.rect.top - delta,
+              bottom: item.rect.bottom - delta,
+            },
+          }));
+          scheduleFrameTick();
+        }
+      };
+
+      const scrollTarget = container === window ? window : container;
+      if (scrollTarget && typeof scrollTarget.addEventListener === "function") {
+        scrollTarget.addEventListener("scroll", handleContainerScroll, { passive: true });
+        activeScrollListenerRef.current = () => {
+          scrollTarget.removeEventListener("scroll", handleContainerScroll);
+        };
+      }
+
       const handlePointerMove = (moveEv: PointerEvent) => {
         if (moveEv.cancelable) {
           moveEv.preventDefault();
@@ -559,6 +646,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointercancel", handlePointerCancel);
         window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
+        handleEl.removeEventListener("lostpointercapture", handlePointerCancel);
 
         if (!hasExceededThreshold || !clone) {
           cleanupDrag();
@@ -625,20 +713,17 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointercancel", handlePointerCancel);
         window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
+        handleEl.removeEventListener("lostpointercapture", handlePointerCancel);
         cleanupDrag();
       };
 
       const handleKeyDown = (keyEv: KeyboardEvent) => {
         if (keyEv.key === "Escape") {
-          window.removeEventListener("pointermove", handlePointerMove);
-          window.removeEventListener("pointerup", handlePointerUp);
-          window.removeEventListener("pointercancel", handlePointerCancel);
-          window.removeEventListener("blur", handlePointerCancel);
-          window.removeEventListener("keydown", handleKeyDown);
-          cleanupDrag();
+          handlePointerCancel();
         }
       };
 
+      handleEl.addEventListener("lostpointercapture", handlePointerCancel, { once: true });
       window.addEventListener("pointermove", handlePointerMove, { passive: false });
       window.addEventListener("pointerup", handlePointerUp);
       window.addEventListener("pointercancel", handlePointerCancel);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import Decimal from "decimal.js";
 import {
@@ -1693,6 +1693,19 @@ function DashboardCardsGrid({
     onReorderCards,
   });
 
+  const metrics7 = useMemo(() => computeMetricsForPeriod(7), [computeMetricsForPeriod]);
+  const metrics30 = useMemo(() => computeMetricsForPeriod(30), [computeMetricsForPeriod]);
+  const metrics90 = useMemo(() => computeMetricsForPeriod(90), [computeMetricsForPeriod]);
+
+  const getMetrics = useCallback(
+    (periodDays: number) => {
+      if (periodDays === 7) return metrics7;
+      if (periodDays === 90) return metrics90;
+      return metrics30;
+    },
+    [metrics7, metrics30, metrics90],
+  );
+
   return (
     <div ref={containerRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       {itemsToRender.map((item, index) => {
@@ -1707,85 +1720,161 @@ function DashboardCardsGrid({
         }
 
         const card = item.card;
-        const cardMetrics = computeMetricsForPeriod(card.periodDays);
-        const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
-        const isCurrent = activeDrag?.key === card.key;
 
         return (
-          <div
+          <DashboardCardItem
             key={card.key}
-            id={`card-${card.key}`}
-            data-card-key={card.key}
-            className={cn(
-              "scroll-mt-6 rounded-2xl transition-opacity duration-200",
-              span === 2 ? "lg:col-span-2" : "lg:col-span-1",
-              isDraggingAny && !isCurrent && "widget-card-recessed",
-            )}
-          >
-            <DashboardCardShell
-              card={card}
-              isFirst={index === 0}
-              isLast={index === itemsToRender.length - 1}
-              configOpen={configOpenKey === card.key}
-              onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
-              onMoveUp={() => stepCardOrder(card.key, -1)}
-              onMoveDown={() => stepCardOrder(card.key, 1)}
-              onUpdate={(patch) => updateCardConfig(card.key, patch)}
-              onRemove={() => removeCard(card.key)}
-              onStartDrag={(e) => startDrag(e, card.key)}
-            >
-              {card.key === "gauges" && (
-                <WalletGaugesCard
-                  primaryCode={primaryCode}
-                  primaryDecimals={primaryDecimals}
-                  primarySymbol={primarySymbol}
-                  balance={selectedBalancePrimary}
-                  cashflow={cardMetrics.netCashflow}
-                  outlook={cardMetrics.outlookNext7}
-                  spending={cardMetrics.expenseSum.negated()}
-                  income={cardMetrics.incomeSum}
-                  creditPct={cardMetrics.creditPct}
-                  debtPct={cardMetrics.debtPct}
-                />
-              )}
-
-              {card.key === "recent_records" && (
-                <RecentRecordsCard
-                  transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
-                  periodDays={card.periodDays}
-                />
-              )}
-
-              {card.key === "cashflow_table" && (
-                <CashFlowTableCard
-                  primaryCode={primaryCode}
-                  primaryDecimals={primaryDecimals}
-                  periodDays={card.periodDays}
-                  metrics={cardMetrics}
-                />
-              )}
-
-              {card.key === "charts" && (
-                <ChartsCard
-                  primaryCode={primaryCode}
-                  barData={barData}
-                  trendData={trendData}
-                  loadingTrend={chartLoading}
-                />
-              )}
-
-              {card.key === "budgets_goals" && (
-                <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
-              )}
-
-              <ExtraCard card={card} ctx={extraCtx} />
-            </DashboardCardShell>
-          </div>
+            card={card}
+            index={index}
+            totalItems={itemsToRender.length}
+            configOpenKey={configOpenKey}
+            setConfigOpenKey={setConfigOpenKey}
+            stepCardOrder={stepCardOrder}
+            updateCardConfig={updateCardConfig}
+            removeCard={removeCard}
+            onStartDrag={(e) => startDrag(e, card.key)}
+            isCurrent={activeDrag?.key === card.key}
+            isDraggingAny={isDraggingAny}
+            cardMetrics={getMetrics(card.periodDays)}
+            filteredTransactions={filteredTransactions}
+            primaryCode={primaryCode}
+            primaryDecimals={primaryDecimals}
+            primarySymbol={primarySymbol}
+            selectedBalancePrimary={selectedBalancePrimary}
+            barData={barData}
+            trendData={trendData}
+            chartLoading={chartLoading}
+            budgetRows={budgetRows}
+            extraCtx={extraCtx}
+          />
         );
       })}
     </div>
   );
 }
+
+interface DashboardCardItemProps {
+  card: DashboardCardConfig;
+  index: number;
+  totalItems: number;
+  configOpenKey: DashboardCardKey | null;
+  setConfigOpenKey: (key: DashboardCardKey | null) => void;
+  stepCardOrder: (key: DashboardCardKey, delta: -1 | 1) => void;
+  updateCardConfig: (key: DashboardCardKey, patch: Partial<DashboardCardConfig>) => void;
+  removeCard: (key: DashboardCardKey) => void;
+  onStartDrag: (e: React.PointerEvent) => void;
+  isCurrent: boolean;
+  isDraggingAny: boolean;
+  cardMetrics: ReturnType<DashboardCardsGridProps["computeMetricsForPeriod"]>;
+  filteredTransactions: Array<Resource<TransactionGroup>>;
+  primaryCode: string;
+  primaryDecimals: number;
+  primarySymbol?: string;
+  selectedBalancePrimary: Decimal;
+  barData: Array<{ name: string; Income: number; Expense: number }>;
+  trendData: Array<{ date: string; Balance: number }>;
+  chartLoading: boolean;
+  budgetRows: Array<{ id: string; name: string; spent: number; limit: number; code: string; decimals?: number }>;
+  extraCtx: ExtraCardContext;
+}
+
+const DashboardCardItem = React.memo(function DashboardCardItem({
+  card,
+  index,
+  totalItems,
+  configOpenKey,
+  setConfigOpenKey,
+  stepCardOrder,
+  updateCardConfig,
+  removeCard,
+  onStartDrag,
+  isCurrent,
+  isDraggingAny,
+  cardMetrics,
+  filteredTransactions,
+  primaryCode,
+  primaryDecimals,
+  primarySymbol,
+  selectedBalancePrimary,
+  barData,
+  trendData,
+  chartLoading,
+  budgetRows,
+  extraCtx,
+}: DashboardCardItemProps) {
+  const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
+
+  return (
+    <div
+      id={`card-${card.key}`}
+      data-card-key={card.key}
+      className={cn(
+        "scroll-mt-6 rounded-2xl transition-opacity duration-200",
+        span === 2 ? "lg:col-span-2" : "lg:col-span-1",
+        isDraggingAny && !isCurrent && "widget-card-recessed",
+      )}
+    >
+      <DashboardCardShell
+        card={card}
+        isFirst={index === 0}
+        isLast={index === totalItems - 1}
+        configOpen={configOpenKey === card.key}
+        onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
+        onMoveUp={() => stepCardOrder(card.key, -1)}
+        onMoveDown={() => stepCardOrder(card.key, 1)}
+        onUpdate={(patch) => updateCardConfig(card.key, patch)}
+        onRemove={() => removeCard(card.key)}
+        onStartDrag={onStartDrag}
+      >
+        {card.key === "gauges" && (
+          <WalletGaugesCard
+            primaryCode={primaryCode}
+            primaryDecimals={primaryDecimals}
+            primarySymbol={primarySymbol}
+            balance={selectedBalancePrimary}
+            cashflow={cardMetrics.netCashflow}
+            outlook={cardMetrics.outlookNext7}
+            spending={cardMetrics.expenseSum.negated()}
+            income={cardMetrics.incomeSum}
+            creditPct={cardMetrics.creditPct}
+            debtPct={cardMetrics.debtPct}
+          />
+        )}
+
+        {card.key === "recent_records" && (
+          <RecentRecordsCard
+            transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
+            periodDays={card.periodDays}
+          />
+        )}
+
+        {card.key === "cashflow_table" && (
+          <CashFlowTableCard
+            primaryCode={primaryCode}
+            primaryDecimals={primaryDecimals}
+            periodDays={card.periodDays}
+            metrics={cardMetrics}
+          />
+        )}
+
+        {card.key === "charts" && (
+          <ChartsCard
+            primaryCode={primaryCode}
+            barData={barData}
+            trendData={trendData}
+            loadingTrend={chartLoading}
+          />
+        )}
+
+        {card.key === "budgets_goals" && (
+          <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
+        )}
+
+        <ExtraCard card={card} ctx={extraCtx} />
+      </DashboardCardShell>
+    </div>
+  );
+});
 
 // ============================================================================
 // CARD SHELL WITH DRAG HANDLE & 3-DOT CONFIGURATION POPOVER
@@ -2022,7 +2111,7 @@ function RadialArcMeter({
   );
 }
 
-function WalletGaugesCard({
+const WalletGaugesCard = React.memo(function WalletGaugesCard({
   primaryCode,
   primaryDecimals,
   primarySymbol,
@@ -2239,13 +2328,13 @@ function WalletGaugesCard({
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 2. LAST RECORDS OVERVIEW CARD
 // ============================================================================
 
-function RecentRecordsCard({
+const RecentRecordsCard = React.memo(function RecentRecordsCard({
   transactions,
   periodDays,
 }: {
@@ -2271,13 +2360,13 @@ function RecentRecordsCard({
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 3. CASH FLOW TABLE CARD (Count, Average Day, Average Record, Total, Cash Flow)
 // ============================================================================
 
-function CashFlowTableCard({
+const CashFlowTableCard = React.memo(function CashFlowTableCard({
   primaryCode,
   primaryDecimals,
   periodDays,
@@ -2365,13 +2454,13 @@ function CashFlowTableCard({
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 4. CHARTS CARD (Income vs Expense & Balance Trend)
 // ============================================================================
 
-function ChartsCard({
+const ChartsCard = React.memo(function ChartsCard({
   primaryCode,
   barData,
   trendData,
@@ -2442,13 +2531,13 @@ function ChartsCard({
       </div>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 5. BUDGETS & GOALS CARD
 // ============================================================================
 
-function BudgetsGoalsCard({
+const BudgetsGoalsCard = React.memo(function BudgetsGoalsCard({
   budgetRows,
 }: {
   budgetRows: Array<{ id: string; name: string; spent: number; limit: number; code: string; decimals?: number }>;
@@ -2492,4 +2581,4 @@ function BudgetsGoalsCard({
       </div>
     </div>
   );
-}
+});
