@@ -57,4 +57,5 @@ yarn-error.log*
 
 # Agent logs & scratch
 .agents/
+*.apk
 
