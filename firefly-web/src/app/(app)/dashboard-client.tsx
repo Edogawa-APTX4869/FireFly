@@ -50,6 +50,10 @@ import {
   type DashboardCardKey,
   type DashboardPreferences,
 } from "@/lib/dashboard-cards";
+import {
+  useDashboardDnd,
+  DashboardDropPlaceholder,
+} from "@/components/dashboard-dnd";
 import { ExtraCard, inPeriod, type ExtraCardContext } from "./dashboard-extra-cards";
 import { useAccounts, usePrimaryCurrency, useRatesToPrimary } from "@/lib/hooks";
 import { cn, formatMoney, isoDate, monthRange, sumDecimal } from "@/lib/utils";
@@ -760,6 +764,23 @@ export function DashboardClient() {
   const selectedIds = useMemo(() => prefs.selectedAccountIds ?? [], [prefs.selectedAccountIds]);
   const cards = Array.isArray(prefs.cards) ? prefs.cards : DEFAULT_DASHBOARD_PREFS.cards;
 
+  const {
+    containerRef,
+    activeDrag,
+    isDraggingAny,
+    itemsToRender,
+    startDrag,
+  } = useDashboardDnd({
+    cards,
+    onReorderCards: (newCards) => {
+      qc.setQueryData(["dashboard-prefs"], (old: unknown) => {
+        const prev = (old && typeof old === "object" ? old : {}) as Record<string, unknown>;
+        return { ...prev, cards: newCards };
+      });
+      savePrefsMut.mutate({ cards: newCards });
+    },
+  });
+
   const summaryQ = useQuery({
     queryKey: ["dashboard", "summary", currentMonth.start, currentMonth.end],
     queryFn: () => api.summary(currentMonth.start, currentMonth.end),
@@ -1273,125 +1294,95 @@ export function DashboardClient() {
       <DashboardQuickFilterChips />
 
       {/* Draggable & Configurable Dashboard Cards (1 col on Mobile, 2-col Bento Grid on Desktop) */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        {cards
-          .filter((c) => c.visible)
-          .map((card, index, visibleList) => {
-            const cardMetrics = computeMetricsForPeriod(card.periodDays);
-            const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
-            const isDragging = dragKey === card.key;
-            const isDropTarget = dragOverKey === card.key && dragKey !== null && dragKey !== card.key;
+      <div ref={containerRef} className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {itemsToRender.map((item, index) => {
+          if (item.type === "placeholder") {
             return (
-              <div
-                key={card.key}
-                id={`card-${card.key}`}
-                data-card-key={card.key}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", card.key);
-                  setDragKey(card.key);
-                }}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  if (dragKey && dragKey !== card.key) {
-                    setDragOverKey(card.key);
-                  }
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  if (dragKey && dragKey !== card.key && dragOverKey !== card.key) {
-                    setDragOverKey(card.key);
-                  }
-                }}
-                onDragLeave={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    setDragOverKey((prev) => (prev === card.key ? null : prev));
-                  }
-                }}
-                onDragEnd={() => {
-                  setDragKey(null);
-                  setDragOverKey(null);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragKey && dragKey !== card.key) {
-                    moveCard(dragKey, card.key);
-                  }
-                  setDragKey(null);
-                  setDragOverKey(null);
-                }}
-                className={cn(
-                  "scroll-mt-6 rounded-2xl transition-all duration-200",
-                  span === 2 ? "lg:col-span-2" : "lg:col-span-1",
-                  isDragging && "scale-[0.98] opacity-50 ring-2 ring-primary/40",
-                  isDropTarget && "ring-2 ring-primary ring-offset-2 ring-offset-bg scale-[1.01]",
-                )}
-              >
-                <DashboardCardShell
-                  card={card}
-                  isFirst={index === 0}
-                  isLast={index === visibleList.length - 1}
-                  configOpen={configOpenKey === card.key}
-                  onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
-                  onMoveUp={() => stepCardOrder(card.key, -1)}
-                  onMoveDown={() => stepCardOrder(card.key, 1)}
-                  onUpdate={(patch) => updateCardConfig(card.key, patch)}
-                  onRemove={() => removeCard(card.key)}
-                  onTouchStartHandle={() => setDragKey(card.key)}
-                  onTouchMoveHandle={(e) => handleTouchDragMove(e, "data-card-key")}
-                  onTouchEndHandle={handleTouchDragEnd}
-                >
-                  {card.key === "gauges" && (
-                    <WalletGaugesCard
-                      primaryCode={primaryCode}
-                      primaryDecimals={primaryDecimals}
-                      primarySymbol={primary?.symbol}
-                      balance={selectedBalancePrimary}
-                      cashflow={cardMetrics.netCashflow}
-                      outlook={cardMetrics.outlookNext7}
-                      spending={cardMetrics.expenseSum.negated()}
-                      income={cardMetrics.incomeSum}
-                      creditPct={cardMetrics.creditPct}
-                      debtPct={cardMetrics.debtPct}
-                    />
-                  )}
-
-                  {card.key === "recent_records" && (
-                    <RecentRecordsCard
-                      transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
-                      periodDays={card.periodDays}
-                    />
-                  )}
-
-                  {card.key === "cashflow_table" && (
-                    <CashFlowTableCard
-                      primaryCode={primaryCode}
-                      primaryDecimals={primaryDecimals}
-                      periodDays={card.periodDays}
-                      metrics={cardMetrics}
-                    />
-                  )}
-
-                  {card.key === "charts" && (
-                    <ChartsCard
-                      primaryCode={primaryCode}
-                      barData={barData}
-                      trendData={trendData}
-                      loadingTrend={chartQ.isLoading}
-                    />
-                  )}
-
-                  {card.key === "budgets_goals" && (
-                    <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
-                  )}
-
-                  <ExtraCard card={card} ctx={extraCtx} />
-                </DashboardCardShell>
-              </div>
+              <DashboardDropPlaceholder
+                key={item.key}
+                height={item.height}
+                span={item.span}
+              />
             );
-          })}
+          }
+
+          const card = item.card;
+          const cardMetrics = computeMetricsForPeriod(card.periodDays);
+          const span = card.span ?? CATALOG_BY_KEY.get(card.key)?.defaultSpan ?? 1;
+          const isCurrent = activeDrag?.key === card.key;
+
+          return (
+            <div
+              key={card.key}
+              id={`card-${card.key}`}
+              data-card-key={card.key}
+              className={cn(
+                "scroll-mt-6 rounded-2xl transition-all duration-200",
+                span === 2 ? "lg:col-span-2" : "lg:col-span-1",
+                isDraggingAny && !isCurrent && "widget-card-recessed",
+              )}
+            >
+              <DashboardCardShell
+                card={card}
+                isFirst={index === 0}
+                isLast={index === itemsToRender.length - 1}
+                configOpen={configOpenKey === card.key}
+                onToggleConfig={() => setConfigOpenKey(configOpenKey === card.key ? null : card.key)}
+                onMoveUp={() => stepCardOrder(card.key, -1)}
+                onMoveDown={() => stepCardOrder(card.key, 1)}
+                onUpdate={(patch) => updateCardConfig(card.key, patch)}
+                onRemove={() => removeCard(card.key)}
+                onStartDrag={(e) => startDrag(e, card.key)}
+              >
+                {card.key === "gauges" && (
+                  <WalletGaugesCard
+                    primaryCode={primaryCode}
+                    primaryDecimals={primaryDecimals}
+                    primarySymbol={primary?.symbol}
+                    balance={selectedBalancePrimary}
+                    cashflow={cardMetrics.netCashflow}
+                    outlook={cardMetrics.outlookNext7}
+                    spending={cardMetrics.expenseSum.negated()}
+                    income={cardMetrics.incomeSum}
+                    creditPct={cardMetrics.creditPct}
+                    debtPct={cardMetrics.debtPct}
+                  />
+                )}
+
+                {card.key === "recent_records" && (
+                  <RecentRecordsCard
+                    transactions={inPeriod(filteredTransactions, card.periodDays).slice(0, card.recordLimit || 5)}
+                    periodDays={card.periodDays}
+                  />
+                )}
+
+                {card.key === "cashflow_table" && (
+                  <CashFlowTableCard
+                    primaryCode={primaryCode}
+                    primaryDecimals={primaryDecimals}
+                    periodDays={card.periodDays}
+                    metrics={cardMetrics}
+                  />
+                )}
+
+                {card.key === "charts" && (
+                  <ChartsCard
+                    primaryCode={primaryCode}
+                    barData={barData}
+                    trendData={trendData}
+                    loadingTrend={chartQ.isLoading}
+                  />
+                )}
+
+                {card.key === "budgets_goals" && (
+                  <BudgetsGoalsCard budgetRows={budgetRows.slice(0, card.recordLimit || 5)} />
+                )}
+
+                <ExtraCard card={card} ctx={extraCtx} />
+              </DashboardCardShell>
+            </div>
+          );
+        })}
       </div>
 
       {/* Bottom "Add more cards / Customize Dashboard" bar + ModalSheet */}
@@ -1722,9 +1713,7 @@ function DashboardCardShell({
   onMoveDown,
   onUpdate,
   onRemove,
-  onTouchStartHandle,
-  onTouchMoveHandle,
-  onTouchEndHandle,
+  onStartDrag,
   children,
 }: {
   card: DashboardCardConfig;
@@ -1736,9 +1725,7 @@ function DashboardCardShell({
   onMoveDown: () => void;
   onUpdate: (patch: Partial<DashboardCardConfig>) => void;
   onRemove: () => void;
-  onTouchStartHandle?: (e: React.TouchEvent) => void;
-  onTouchMoveHandle?: (e: React.TouchEvent) => void;
-  onTouchEndHandle?: (e: React.TouchEvent) => void;
+  onStartDrag?: (e: React.PointerEvent) => void;
   children: React.ReactNode;
 }) {
   const entry = CATALOG_BY_KEY.get(card.key);
@@ -1761,11 +1748,12 @@ function DashboardCardShell({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span
-            className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none"
+            className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg text-muted hover:bg-surface-2 hover:text-fg active:cursor-grabbing touch-none select-none"
             title="Drag to reorder card"
-            onTouchStart={onTouchStartHandle}
-            onTouchMove={onTouchMoveHandle}
-            onTouchEnd={onTouchEndHandle}
+            aria-label="Drag to reorder card"
+            role="button"
+            tabIndex={0}
+            onPointerDown={onStartDrag}
           >
             <GripVertical className="size-4" aria-hidden />
           </span>

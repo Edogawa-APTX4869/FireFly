@@ -206,11 +206,15 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     prevRectsRef.current = map;
   }, [visibleCards]);
 
-  // FLIP animation: animate sibling cards sliding smoothly when placeholder swaps slots
+    // FLIP animation: animate sibling cards sliding smoothly when placeholder swaps slots
   useIsomorphicLayoutEffect(() => {
     if (!prevRectsRef.current || !activeDrag) return;
     const prevRects = prevRectsRef.current;
     prevRectsRef.current = null;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
 
     for (const card of visibleCards) {
       if (card.key === activeDrag.key) continue;
@@ -228,6 +232,13 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         requestAnimationFrame(() => {
           el.style.transition = "transform 250ms cubic-bezier(0.2, 0, 0, 1), opacity 200ms ease";
           el.style.transform = "translate3d(0, 0, 0) scale(0.985)";
+          const onEnd = () => {
+            el.style.transform = "";
+            el.style.transition = "";
+            el.removeEventListener("transitionend", onEnd);
+          };
+          el.addEventListener("transitionend", onEnd);
+          setTimeout(onEnd, 260);
         });
       }
     }
@@ -271,6 +282,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
       if (nextTargetIndex !== current.dropIndex) {
         recordSiblingRects();
+        current.dropIndex = nextTargetIndex;
         setActiveDrag((prev) => (prev ? { ...prev, dropIndex: nextTargetIndex } : null));
       }
     },
@@ -323,6 +335,14 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
     if (typeof document !== "undefined") {
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
+      document.body.style.touchAction = "";
+      // Reset any FLIP inline transforms so cards return to scale(1) cleanly
+      const cardEls = document.querySelectorAll("[data-card-key]");
+      cardEls.forEach((node) => {
+        const el = node as HTMLElement;
+        el.style.transform = "";
+        el.style.transition = "";
+      });
     }
     setActiveDrag(null);
     setIsSettling(false);
@@ -366,6 +386,8 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           // Lift card into clone overlay
           clone = cardEl.cloneNode(true) as HTMLElement;
           clone.id = "dashboard-drag-clone";
+          clone.removeAttribute("data-card-key");
+          clone.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
           clone.setAttribute("aria-hidden", "true");
           clone.style.position = "fixed";
           clone.style.left = `${initialRect.left}px`;
@@ -383,6 +405,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
           document.body.style.userSelect = "none";
           document.body.style.cursor = "grabbing";
+          document.body.style.touchAction = "none";
 
           setActiveDrag({
             key: cardKey,
@@ -417,6 +440,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
         window.removeEventListener("pointercancel", handlePointerCancel);
+        window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
 
         if (!hasExceededThreshold || !clone) {
@@ -434,8 +458,11 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
         const current = activeDragRef.current;
         const placeholder = document.getElementById("dashboard-drop-placeholder");
+        const prefersReducedMotion =
+          typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const settleDuration = prefersReducedMotion ? 0 : 220;
 
-        if (placeholder && current) {
+        if (placeholder && current && settleDuration > 0) {
           const targetRect = placeholder.getBoundingClientRect();
           const destDx = targetRect.left - current.initialLeft;
           const destDy = targetRect.top - current.initialTop;
@@ -461,8 +488,24 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
 
             onReorderCards(nextCards);
             cleanupDrag();
-          }, 220);
+          }, settleDuration);
         } else {
+          if (current) {
+            const siblings = visibleCards.filter((c: DashboardCardConfig) => c.key !== cardKey);
+            const newVisible = [...siblings];
+            const clampedIndex = Math.max(0, Math.min(current.dropIndex, siblings.length));
+            newVisible.splice(clampedIndex, 0, targetCard);
+
+            const visibleSet = new Set(newVisible.map((c: DashboardCardConfig) => c.key));
+            let vPtr = 0;
+            const nextCards = cards.map((c: DashboardCardConfig) => {
+              if (visibleSet.has(c.key)) {
+                return newVisible[vPtr++]!;
+              }
+              return c;
+            });
+            onReorderCards(nextCards);
+          }
           cleanupDrag();
         }
       };
@@ -471,6 +514,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
         window.removeEventListener("pointermove", handlePointerMove);
         window.removeEventListener("pointerup", handlePointerUp);
         window.removeEventListener("pointercancel", handlePointerCancel);
+        window.removeEventListener("blur", handlePointerCancel);
         window.removeEventListener("keydown", handleKeyDown);
         cleanupDrag();
       };
@@ -480,6 +524,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
           window.removeEventListener("pointermove", handlePointerMove);
           window.removeEventListener("pointerup", handlePointerUp);
           window.removeEventListener("pointercancel", handlePointerCancel);
+          window.removeEventListener("blur", handlePointerCancel);
           window.removeEventListener("keydown", handleKeyDown);
           cleanupDrag();
         }
@@ -488,6 +533,7 @@ export function useDashboardDnd({ cards, onReorderCards }: UseDashboardDndOption
       window.addEventListener("pointermove", handlePointerMove, { passive: false });
       window.addEventListener("pointerup", handlePointerUp);
       window.addEventListener("pointercancel", handlePointerCancel);
+      window.addEventListener("blur", handlePointerCancel);
       window.addEventListener("keydown", handleKeyDown);
     },
     [visibleCards, cards, onReorderCards, updateDropTarget, runAutoScrollLoop, cleanupDrag],

@@ -172,3 +172,52 @@ describe("Scroll Container Resolution", () => {
     expect(container).toBeNull();
   });
 });
+
+describe("Dashboard Drag-and-Drop Edge Cases & Contract", () => {
+  it("handles single-card dashboard correctly without crashing or invalid indices", () => {
+    // When only 1 card is visible, siblings array is empty
+    const siblings: SiblingRectItem[] = [];
+    expect(computeTargetDropIndex({ x: 200, y: 300 }, siblings)).toBe(0);
+    expect(computeTargetDropIndex({ x: 0, y: 0 }, siblings)).toBe(0);
+    expect(computeTargetDropIndex({ x: 1000, y: 5000 }, siblings)).toBe(0);
+  });
+
+  it("handles cards of varying heights in a single column", () => {
+    const varyingSiblings: SiblingRectItem[] = [
+      {
+        key: "gauges" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 0, bottom: 150, width: 400, height: 150 }, // midY = 75
+      },
+      {
+        key: "recent_records" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 170, bottom: 490, width: 400, height: 320 }, // midY = 330
+      },
+      {
+        key: "cashflow_table" as DashboardCardKey,
+        rect: { left: 50, right: 450, top: 510, bottom: 910, width: 400, height: 400 }, // midY = 710
+      },
+    ];
+
+    // Above first card center (75) -> index 0
+    expect(computeTargetDropIndex({ x: 250, y: 50 }, varyingSiblings)).toBe(0);
+    // Crossed first card center (75) -> index 1
+    expect(computeTargetDropIndex({ x: 250, y: 100 }, varyingSiblings)).toBe(1);
+    // Before second card center (330) -> index 1
+    expect(computeTargetDropIndex({ x: 250, y: 250 }, varyingSiblings)).toBe(1);
+    // Crossed second card center (330) -> index 2
+    expect(computeTargetDropIndex({ x: 250, y: 360 }, varyingSiblings)).toBe(2);
+    // Before third card center (710) -> index 2
+    expect(computeTargetDropIndex({ x: 250, y: 600 }, varyingSiblings)).toBe(2);
+    // Crossed third card center (710) -> index 3
+    expect(computeTargetDropIndex({ x: 250, y: 800 }, varyingSiblings)).toBe(3);
+  });
+
+  it("clamps auto-scroll velocity at max speed for extreme pointer coordinates", () => {
+    const top = 100;
+    const bottom = 900;
+    // Way above viewport (-500)
+    expect(computeAutoScrollVelocity(-500, top, bottom, 16)).toBe(-16);
+    // Way below viewport (+2500)
+    expect(computeAutoScrollVelocity(2500, top, bottom, 16)).toBe(16);
+  });
+});
