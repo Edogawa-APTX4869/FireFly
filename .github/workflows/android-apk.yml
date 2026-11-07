@@ -1,0 +1,62 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: firefly-web/package-lock.json
+
+      - name: Install dependencies & sync Capacitor Android
+        working-directory: ./firefly-web
+        run: |
+          npm ci
+          npx cap sync android
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Build Android APK
+        working-directory: ./firefly-web/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../../Wallet-Android.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wallet-Android-APK
+          path: Wallet-Android.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Release (latest-apk)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view latest-apk >/dev/null 2>&1; then
+            gh release upload latest-apk Wallet-Android.apk --clobber
+          else
+            gh release create latest-apk Wallet-Android.apk \
+              --title "Wallet Android APK (Latest)" \
+              --notes "Installable Android APK for Firefly Wallet (supports Cloud & Local LAN servers, hardware back button, native status bar, and haptics)."
+          fi

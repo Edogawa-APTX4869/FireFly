@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { FireflyError } from "@/lib/firefly/api";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CapacitorBridge } from "@/components/capacitor-bridge";
 
 type Toast = { id: number; message: string; tone: "success" | "error" | "info" };
 const ToastCtx = createContext<(message: string, tone?: Toast["tone"]) => void>(() => {});
@@ -42,6 +43,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <ThemeProvider>
+        <CapacitorBridge />
         <ToastCtx.Provider value={push}>
           {children}
           <div

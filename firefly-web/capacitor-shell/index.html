@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Wallet</title>
+  <style>
+    :root {
+      --bg: #f8f9fc;
+      --surface: #ffffff;
+      --surface-2: #f1f3f9;
+      --fg: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #4f46e5;
+      --primary-fg: #ffffff;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161821;
+        --surface: #1e212d;
+        --surface-2: #262a38;
+        --fg: #f3f4f6;
+        --muted: #9ca3af;
+        --border: #2e3344;
+        --primary: #6366f1;
+        --primary-fg: #ffffff;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--fg);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: calc(1.5rem + env(safe-area-inset-top)) 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+    }
+    .card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 1.125rem;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    .brand-text h1 {
+      font-size: 1.125rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.75rem;
+      border-radius: 12px;
+      background: var(--surface-2);
+      font-size: 0.8125rem;
+      color: var(--fg);
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+    .field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .input {
+      height: 44px;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      padding: 0 0.875rem;
+      font-size: 0.875rem;
+      outline: none;
+    }
+    .input:focus {
+      border-color: var(--primary);
+    }
+    .presets {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+    }
+    .preset-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 42px;
+      padding: 0.5rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--fg);
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+    }
+    .preset-btn:active { transform: scale(0.99); }
+    .preset-tag {
+      font-size: 0.6875rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .btn {
+      height: 48px;
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .btn:active { opacity: 0.92; transform: scale(0.99); }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="logo">W</div>
+      <div class="brand-text">
+        <h1>Wallet</h1>
+        <p>Personal Finance &amp; Net Worth</p>
+      </div>
+    </div>
+
+    <div id="status-box" class="status">
+      <div id="spinner" class="spinner"></div>
+      <span id="status-text">Connecting to Wallet server...</span>
+    </div>
+
+    <form id="server-form" class="field">
+      <label for="server-url">Server Address</label>
+      <input
+        id="server-url"
+        class="input"
+        type="url"
+        placeholder="https://wallet.alqubaiti.com"
+        required
+      />
+    </form>
+
+    <div class="presets">
+      <button type="button" class="preset-btn" data-url="https://wallet.alqubaiti.com">
+        <span>https://wallet.alqubaiti.com</span>
+        <span class="preset-tag">Cloud</span>
+      </button>
+      <button type="button" class="preset-btn" data-url="https://budget.alqubaiti.com">
+        <span>https://budget.alqubaiti.com</span>
+        <span class="preset-tag">Primary</span>
+      </button>
+      <button type="button" class="preset-btn" data-url="http://192.168.8.122:6976">
+        <span>http://192.168.8.122:6976</span>
+        <span class="preset-tag">Local LAN</span>
+      </button>
+    </div>
+
+    <button id="connect-btn" type="button" class="btn">
+      Launch Wallet
+    </button>
+  </div>
+
+  <script>
+    (function () {
+      var STORAGE_KEY = "wallet_capacitor_server_url";
+      var DEFAULT_URL = "https://wallet.alqubaiti.com";
+      var input = document.getElementById("server-url");
+      var statusText = document.getElementById("status-text");
+      var spinner = document.getElementById("spinner");
+      var connectBtn = document.getElementById("connect-btn");
+      var form = document.getElementById("server-form");
+
+      var saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_URL;
+      input.value = saved;
+
+      function normalizeUrl(raw) {
+        var trimmed = (raw || "").trim().replace(/\/+$/, "");
+        if (!trimmed) return DEFAULT_URL;
+        if (!/^https?:\/\//i.test(trimmed)) {
+          trimmed = "https://" + trimmed;
+        }
+        return trimmed;
+      }
+
+      function launch(targetUrl) {
+        var url = normalizeUrl(targetUrl);
+        localStorage.setItem(STORAGE_KEY, url);
+        input.value = url;
+        spinner.classList.remove("hidden");
+        statusText.textContent = "Opening " + url + " ...";
+        window.location.replace(url);
+      }
+
+      var presetButtons = document.querySelectorAll(".preset-btn");
+      for (var i = 0; i < presetButtons.length; i++) {
+        presetButtons[i].addEventListener("click", function (e) {
+          var u = e.currentTarget.getAttribute("data-url");
+          if (u) launch(u);
+        });
+      }
+
+      connectBtn.addEventListener("click", function () {
+        launch(input.value);
+      });
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        launch(input.value);
+      });
+
+      // Auto-launch saved server on startup unless ?configure=1 is passed
+      if (window.location.search.indexOf("configure=1") === -1) {
+        setTimeout(function () {
+          launch(saved);
+        }, 250);
+      } else {
+        spinner.classList.add("hidden");
+        statusText.textContent = "Select or enter your Wallet server URL";
+      }
+    })();
+  </script>
+</body>
+</html>

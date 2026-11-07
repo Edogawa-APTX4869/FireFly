@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wallet</string>
+    <string name="title_activity_main">Wallet</string>
+    <string name="package_name">com.alqubaiti.wallet</string>
+    <string name="custom_url_scheme">com.alqubaiti.wallet</string>
+</resources>
